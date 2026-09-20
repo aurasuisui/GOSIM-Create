@@ -1,0 +1,56 @@
+{
+  "run_id": "20260920T054320Z-12306-round3",
+  "arm_id": "refimpl-quiet-3r",
+  "round": 3,
+  "change_description": null,
+  "captured_at": "2026-09-20T05:46:47Z",
+  "app": "12306",
+  "port": 3301,
+  "arc_test_date": null,
+  "model": null,
+  "visual_model": null,
+  "ci_env": "",
+  "retries_effective": 0,
+  "load_snapshot": "status=running；runners=0；port=busy；ci=<unset>；at=2026-09-20T05:43:22Z",
+  "pipeline": {
+    "git_commit": null,
+    "git_dirty": null,
+    "note": "不是 git 仓库"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "b88713c0be62f3689cae1f7745f44bf556d8f42302e9b259fde50ada7eb44ebf",
+  "log_path": "runs/20260920T054320Z-12306-round3.log",
+  "tests_total": 135,
+  "tests_passed": 133,
+  "tests_failed": 2,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.9852,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-4.2.3.spec.ts:7",
+      "req_id": "REQ-4.2.3.",
+      "spec_file": "REQ-4.2.3.spec.ts",
+      "title": "REQ-4.2.3: Open the default ticket search from the empty uncompleted orders state",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.2.1.spec.ts:7",
+      "req_id": "REQ-6.2.1.",
+      "spec_file": "REQ-6.2.1.spec.ts",
+      "title": "REQ-6.2.1: Open one guide category tab from the dropdown more link",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "failure_class_counts": {
+    "timeout": 2
+  },
+  "retries_observed": 0,
+  "has_summary": true
+}

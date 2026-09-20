@@ -1,0 +1,98 @@
+[
+  {
+    "model": "deepseek-v4-flash",
+    "extra": null,
+    "usage": {
+      "ts": "2026-09-20T12:00:54Z",
+      "stage": "probe-deepseek-v4-flash",
+      "node_id": "",
+      "model": "deepseek-v4-flash",
+      "input_tokens": 141,
+      "output_tokens": 1236,
+      "total_tokens": 1377,
+      "reasoning_tokens": 949,
+      "elapsed_s": 13.6
+    },
+    "code_chars": 856,
+    "reasoning_share": 0.767799352750809
+  },
+  {
+    "model": "glm-5.3-flash",
+    "extra": null,
+    "usage": {
+      "ts": "2026-09-20T12:01:07Z",
+      "stage": "probe-glm-5.3-flash",
+      "node_id": "",
+      "model": "glm-5.3-flash",
+      "input_tokens": 70,
+      "output_tokens": 411,
+      "total_tokens": 481,
+      "reasoning_tokens": null,
+      "elapsed_s": 13.2
+    },
+    "code_chars": 1450,
+    "reasoning_share": null
+  },
+  {
+    "model": "kimi-k2.7-code-highspeed",
+    "extra": null,
+    "error": "https://api.arc-bench.com/v1/chat/completions 返回 400（不重试）：{\"error\":{\"message\":\"invalid temperature: only 1 is allowed for this model\",\"type\":\"invalid_request_error\"}}"
+  },
+  {
+    "model": "deepseek-v4-flash",
+    "extra": {
+      "reasoning_effort": "low"
+    },
+    "usage": {
+      "ts": "2026-09-20T12:01:14Z",
+      "stage": "probe-deepseek-v4-flash",
+      "node_id": "",
+      "model": "deepseek-v4-flash",
+      "input_tokens": 62,
+      "output_tokens": 483,
+      "total_tokens": 545,
+      "reasoning_tokens": 52,
+      "elapsed_s": 5.9
+    },
+    "code_chars": 1269,
+    "reasoning_share": 0.10766045548654245
+  },
+  {
+    "model": "deepseek-v4-flash",
+    "extra": {
+      "reasoning_effort": "minimal"
+    },
+    "usage": {
+      "ts": "2026-09-20T12:01:19Z",
+      "stage": "probe-deepseek-v4-flash",
+      "node_id": "",
+      "model": "deepseek-v4-flash",
+      "input_tokens": 62,
+      "output_tokens": 380,
+      "total_tokens": 442,
+      "reasoning_tokens": 0,
+      "elapsed_s": 4.7
+    },
+    "code_chars": 1125,
+    "reasoning_share": null
+  },
+  {
+    "model": "glm-5.3-flash",
+    "extra": {
+      "reasoning_effort": "low"
+    },
+    "usage": {
+      "ts": "2026-09-20T12:01:25Z",
+      "stage": "probe-glm-5.3-flash",
+      "node_id": "",
+      "model": "glm-5.3-flash",
+      "input_tokens": 70,
+      "output_tokens": 491,
+      "total_tokens": 561,
+      "reasoning_tokens": null,
+      "elapsed_s": 6.8
+    },
+    "code_chars": 1562,
+    "reasoning_share": null
+  }
+]

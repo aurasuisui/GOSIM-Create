@@ -1,0 +1,33 @@
+{
+  "run_id": "20260920T043334Z-12306-round1",
+  "arm_id": "refimpl-baseline-r5",
+  "round": 1,
+  "change_description": null,
+  "captured_at": "2026-09-20T04:36:36Z",
+  "app": "12306",
+  "port": 3301,
+  "arc_test_date": null,
+  "model": null,
+  "visual_model": null,
+  "pipeline": {
+    "git_commit": null,
+    "git_dirty": null,
+    "note": "不是 git 仓库"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "b88713c0be62f3689cae1f7745f44bf556d8f42302e9b259fde50ada7eb44ebf",
+  "log_path": "runs/20260920T043334Z-12306-round1.log",
+  "tests_total": 135,
+  "tests_passed": 135,
+  "tests_failed": 0,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 1.0,
+  "per_test_failed": [],
+  "failure_class_counts": {},
+  "has_summary": true
+}

@@ -1,0 +1,84 @@
+{
+  "run_id": "20260920T023216Z-12306-round1",
+  "arm_id": "unfinished-test",
+  "round": 1,
+  "change_description": "无（被中断的一次测量，用于验证抽取器）",
+  "captured_at": "2026-09-20T02:55:40Z",
+  "app": "12306",
+  "port": 3301,
+  "arc_test_date": null,
+  "model": null,
+  "visual_model": null,
+  "pipeline": {
+    "git_commit": null,
+    "git_dirty": null,
+    "note": "不是 git 仓库"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "b88713c0be62f3689cae1f7745f44bf556d8f42302e9b259fde50ada7eb44ebf",
+  "log_path": "runs/20260920T023216Z-12306-round1.log",
+  "tests_total": 135,
+  "tests_passed": 129,
+  "tests_failed": 6,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.9556,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-4.2.14.spec.ts:7",
+      "req_id": "REQ-4.2.14.",
+      "spec_file": "REQ-4.2.14.spec.ts",
+      "title": "REQ-4.2.14: Open the default ticket search from the empty history orders state",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.3.spec.ts:7",
+      "req_id": "REQ-4.2.3.",
+      "spec_file": "REQ-4.2.3.spec.ts",
+      "title": "REQ-4.2.3: Open the default ticket search from the empty uncompleted orders state",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.7.spec.ts:7",
+      "req_id": "REQ-4.2.7.",
+      "spec_file": "REQ-4.2.7.spec.ts",
+      "title": "REQ-4.2.7: Open the default ticket search from the empty upcoming trips state",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.7.spec.ts:7",
+      "req_id": "REQ-4.3.7.",
+      "spec_file": "REQ-4.3.7.spec.ts",
+      "title": "REQ-4.3.7: Save a valid security mailbox update",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.3.spec.ts:7",
+      "req_id": "REQ-5.2.3.",
+      "spec_file": "REQ-5.2.3.spec.ts",
+      "title": "REQ-5.2.3: Add selected passengers to the booking table",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.3.spec.ts:7",
+      "req_id": "REQ-5.3.3.",
+      "spec_file": "REQ-5.3.3.spec.ts",
+      "title": "REQ-5.3.3: Cancel the order from the payment page",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "failure_class_counts": {
+    "timeout": 6
+  },
+  "has_summary": true
+}

@@ -1,0 +1,57 @@
+{
+  "routes": [
+    {
+      "path": "/register",
+      "component": "RegisterPage",
+      "purpose": "注册表单页，提供所有必填/可选字段、协议复选框和“下一步”按钮，提交成功后跳转首页并保持登录"
+    },
+    {
+      "path": "/",
+      "component": "HomePage",
+      "purpose": "已登录时显示当前用户名和 Sign out；未登录时显示 Register 链接"
+    }
+  ],
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "request": "username, password, confirmPassword, idType, name, idNumber, passengerType, email?, countryCode, phoneNumber, agreedToTerms",
+      "responses": [
+        "201 + { user: { id, username, name, idType, idNumber, passengerType, email, countryCode, phoneNumber } } + Set-Cookie 会话令牌",
+        "400 + { error: 中文错误消息, fields: { 字段: 中文错误 } }（缺失、格式错误、密码不一致、重复用户名/邮箱、未同意协议）"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "request": "无（读取 sessionId Cookie）",
+      "responses": [
+        "200 + { user: { id, username, name, idType, idNumber, passengerType, email, countryCode, phoneNumber } }",
+        "401 + { error: \"未登录\" }"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "request": "无",
+      "responses": [
+        "204 + Set-Cookie 清除 sessionId",
+        "401 + { error: \"未登录\" }"
+      ]
+    }
+  ],
+  "db_tables": [
+    {
+      "name": "users",
+      "columns": ["id", "username", "password_hash", "name", "id_type", "id_number", "passenger_type", "email", "email_lower", "country_code", "phone_number", "created_at"],
+      "unique": ["username", "email_lower"]
+    },
+    {
+      "name": "sessions",
+      "columns": ["token", "user_id", "created_at", "expires_at"],
+      "unique": ["token"]
+    }
+  ],
+  "session": "注册接口用事务原子写入用户和会话，生成随机令牌存入 sessions 表，并通过 Set-Cookie 下发 HttpOnly、SameSite=Lax、Path=/ 的 sessionId；刷新时浏览器自动携带该 Cookie，GET /api/auth/me 校验 token 和过期时间后返回当前用户，从而保持登录。",
+  "error_shape": "{\"error\": \"中文错误消息\", \"fields\": {\"字段名\": \"该字段的具体中文错误\"}}"
+}

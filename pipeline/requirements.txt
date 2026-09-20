@@ -1,0 +1,30 @@
+# 提交包的 Python 依赖。
+#
+# 契约（docs/02 §一）：
+#   - 平台在跑 agent 之前按本文件装依赖，**那一阶段有网络**；
+#   - agent 真正跑起来之后没有网络；
+#   - 本文件只能**增加**，不能删除上游已有的条目（讲师原话："只增不少"）。
+#
+# 分两段写，是为了让"我们真的需要什么"一眼看得清。
+
+# ---------- 本管线实际用到的 ----------
+pyyaml          # 需求树 YAML 解析（reqcompile.loader）
+requests        # 网关调用（后续阶段的模型客户端）
+
+# ---------- 上游 ARC 已有，原样保留（"只增不减"）----------
+# 本管线不 import 下面这些，但删除会被判成"抽薄依赖"。
+# 留着的代价只是一次性安装时间（不计入 token 成本）。
+aiofiles
+openai
+python-dotenv
+pydantic
+colorama
+click
+jsonschema
+tiktoken
+httpx[socks]
+deepagents
+langchain-openai
+
+# ---------- 本管线新增 ----------
+# （当前没有。第 1 阶段是纯代码、零 LLM 调用，stdlib + pyyaml 就够了。）

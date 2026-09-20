@@ -1,0 +1,76 @@
+{
+  "run_id": "20260920T030002Z-12306-round1",
+  "arm_id": "oracle-recheck-20260920",
+  "round": 1,
+  "change_description": null,
+  "captured_at": "2026-09-20T03:05:28Z",
+  "app": "12306",
+  "port": 3301,
+  "arc_test_date": null,
+  "model": null,
+  "visual_model": null,
+  "pipeline": {
+    "git_commit": null,
+    "git_dirty": null,
+    "note": "不是 git 仓库"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "b88713c0be62f3689cae1f7745f44bf556d8f42302e9b259fde50ada7eb44ebf",
+  "log_path": "runs/20260920T030002Z-12306-round1.log",
+  "tests_total": 135,
+  "tests_passed": 130,
+  "tests_failed": 5,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.963,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-4.2.14.spec.ts:7",
+      "req_id": "REQ-4.2.14.",
+      "spec_file": "REQ-4.2.14.spec.ts",
+      "title": "REQ-4.2.14: Open the default ticket search from the empty history orders state",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.6.spec.ts:7",
+      "req_id": "REQ-4.3.6.",
+      "spec_file": "REQ-4.3.6.spec.ts",
+      "title": "REQ-4.3.6: Save a valid password change from the account security page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.7.spec.ts:7",
+      "req_id": "REQ-4.3.7.",
+      "spec_file": "REQ-4.3.7.spec.ts",
+      "title": "REQ-4.3.7: Save a valid security mailbox update",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.1.spec.ts:7",
+      "req_id": "REQ-5.3.1.",
+      "spec_file": "REQ-5.3.1.spec.ts",
+      "title": "REQ-5.3.1: Confirm the order information and continue",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.3.spec.ts:7",
+      "req_id": "REQ-5.3.3.",
+      "spec_file": "REQ-5.3.3.spec.ts",
+      "title": "REQ-5.3.3: Cancel the order from the payment page",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "failure_class_counts": {
+    "timeout": 5
+  },
+  "has_summary": true
+}
