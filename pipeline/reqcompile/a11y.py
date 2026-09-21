@@ -115,6 +115,10 @@ LABELED = re.compile(r"labeled\b", re.I)
 
 # 列表分隔符（英文逗号/and/or + 中文顿号）
 LIST_SEP = re.compile(r"\s*(?:,|;|\band\b|\bor\b|\u3001)\s*", re.I)
+# 连接词里出现"动作动词" → 下一段引号名属于**另一类控件**，不要再继承上一段的角色。
+# （`LIST_SEP` 只吃连接词本身，这里额外把"连接词 + 后面的动词"一起吃进来当断点判据。）
+RE_LIST_STOP = re.compile(r"\b(?:click|clicks|clicking|press|presses|tap|taps|"
+                          r"select|chooses|hovers)\b|点击|单击|按下|轻点", re.I)
 
 # 锚点与其后引号之间允许的填充词数量和长度（"fields" / "for a" 之类）
 MAX_FILLER = 24
@@ -133,6 +137,13 @@ def _consume_quoted_list(text: str, pos: int) -> list[tuple[str, int, int]]:
 
     这是本抽取器最关键的一个函数：实测里绝大多数名字是**成串出现的**，
     只抓第一个会漏掉大半（12306 上覆盖率从 70% 卡住的原因）。
+
+    ⚠️ **分隔符里带"动作动词"就断串**（2026-09-21 实测的错角色）：keep REQ-2.2 的句子是
+    `enter a title in the "Title" field and content in the "Note content" field, and click "Close"`
+    —— `, and click ` 被当成普通连接词，于是 **`Close` 被并进"输入框"那一串、角色继承成 `textbox`**。
+    后果不是"少一条"而是"错一条"：生成阶段照这个契约做，审查又照着它报
+    "Close 应该是 textbox"，修复来回改了三轮 —— 而判据要的是 `button[Close]`。
+    **`click`/`点击`/`press`/`tap` 之后是另一类控件。**
     """
     out: list[tuple[str, int, int]] = []
     i = pos
@@ -147,6 +158,11 @@ def _consume_quoted_list(text: str, pos: int) -> list[tuple[str, int, int]]:
         i = m.end()
         sep = LIST_SEP.match(text, i)
         if not sep:
+            break
+        # 断点判据要看**分隔符之后、下一个引号之前**的那段窗口（动词在分隔符外面）
+        nxt = QUOTED.search(text, sep.end())
+        win_end = nxt.start() if (nxt and nxt.start() - sep.end() <= 40) else sep.end() + 40
+        if RE_LIST_STOP.search(text[sep.end():win_end]):
             break
         i = sep.end()
     return out
@@ -340,6 +356,8 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
         if not q or q.start() > MAX_FILLER:
             continue
         between = tail[:q.start()]                      # labeled 与首个引号之间
+        if RE_LIST_STOP.search(between):                # `labeled … click "X"` → 不是同类控件
+            continue
         role = _role_from_words(between) or _role_from_words(text[max(0, m.start() - 40):m.start()])
         for name, s, e in _consume_quoted_list(text, m.end() + q.start()):
             take(name, s, e, role, "labeled_list")
@@ -357,6 +375,12 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
             q = QUOTED.search(tail)
             if not q or q.start() > MAX_FILLER:
                 continue
+            # 角色词与首个引号之间出现**动作动词** → 这个引号名不属于本角色词管的那类控件。
+            # 实测（keep REQ-2.2）：句子里有两个 `field`，第二个 `field` 后面跟的是
+            # `, and click "Close"`，于是 `Close` 继承了"输入框"的角色 → 契约错，
+            # 审查照着它报、修复来回改三轮——而判据要的是 `button[Close]`。
+            if RE_LIST_STOP.search(tail[:q.start()]):
+                continue
             for name, s, e in _consume_quoted_list(text, m.end() + q.start()):
                 take(name, s, e, role, "role_before_list")
 
@@ -369,6 +393,24 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
             continue
         take(name, start, end, role or ("button" if clickable else ""),
              "quoted_near_role" if role else "quoted_after_click_verb")
+
+    # ---- 规则 E（§4.1 第 5 条）：**散文名词枚举 + role 映射** ----
+    # 引号名之外的那些：`Click the X link` / `fill in the X field` / `the X button` /
+    # 结构名词（sidebar → complementary、note editor → dialog）。
+    # 为什么需要：四个散文式 app 的交互单元空转率 18–50%（keep 40%），
+    # 而 keep 那轮 31 条失败**全是**"名字/角色对不上"。
+    # 三个约束（位置约束 / 报精度 / L1 fail-soft）见 `reqcompile/prose.py` 的模块头。
+    # ⚠️ 这些条目标 `required=False`（约束 3：散文式先 **fail-soft** 不判死），
+    # L1 按 `pattern.startswith("prose")` 区分处理。
+    from .prose import extract_prose_targets
+    for role, pname, ppattern in extract_prose_targets(text):
+        if pname:
+            take(pname, 0, 0, role, ppattern)
+        else:                                # 纯 role 目标（判据只要 role 存在）
+            index.entries.append(AccessibleName(
+                name="", role=role, req_id=req_id, required=False, options=[],
+                pattern=ppattern, evidence=text[:120].strip(),
+            )) if hasattr(index, "entries") else None
 
 
 def required_names_for_prompt(index: AccessibleNameIndex, req_id: str) -> list[str]:

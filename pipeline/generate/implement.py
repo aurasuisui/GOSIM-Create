@@ -28,6 +28,7 @@ import os
 import re
 from pathlib import Path
 
+from .chunkplan import parse_design, plan_chunks
 from .llm import LLMConfig, chat, totals
 from .schema import SCHEMA_REL, inject_schema
 
@@ -95,6 +96,31 @@ STACK_CONTRACT = """### Main Stack
 # `design` 会**每一块都重发**，所以给它一个上限（实测：不限时把请求顶到 19,410 字符 → 整个 run 作废）
 DESIGN_IN_PROMPT_MAX = int(os.environ.get("PIPELINE_DESIGN_MAX_CHARS") or 4000)
 
+# ---- token 预算与到额降级（`PLAN.md` §4.3：**不是"尽力跑完"，是"到点就收"**）----
+# 为什么必须有：平台要求同一份提交跑完 6 个任务才算聚合分，**一个中途死掉的 run 产出为零**；
+# 而生成阶段是墙钟与 token 的消耗大户（实测：quickstart 单需求 flash 约 20.7 万 token）。
+# 到额后**不再开新块，但要把已完成的部分收尾**（schema 注入 + 校验 + 报告），
+# 产出一个"能构建、能起来、已写部分可用"的应用——§4.3 的地板："至少有一部分功能可用"。
+TOKEN_BUDGET_DEFAULT = int(os.environ.get("PIPELINE_TOKEN_BUDGET") or 300_000)
+# 按 app 的预算（保守档；quickstart 单需求 20.7 万是锚点）。要改就改这里，别临场判断。
+APP_TOKEN_BUDGET = {"keep": 250_000, "bookstack": 250_000, "stackoverflow": 300_000,
+                    "prestashop": 320_000, "12306": 320_000, "ctrip": 320_000}
+
+
+def token_budget(app_hint: str | None = None) -> int:
+    if (os.environ.get("PIPELINE_TOKEN_BUDGET") or "").strip():
+        return int(os.environ["PIPELINE_TOKEN_BUDGET"])
+    return APP_TOKEN_BUDGET.get((app_hint or "").lower(), TOKEN_BUDGET_DEFAULT)
+
+
+def _est_chunk_tokens(chunk: dict) -> int:
+    """粗估一块要花多少 token：输入字符/4 + 输出余量。
+
+    只用于**预留**（core 块必须留够），不用于记账——记账一律看 `totals(cfg)` 的真实值。
+    输出余量取 3,000：实测 flash 单块输出 1,700–21,700，取中位数偏保守。
+    """
+    return (len(chunk.get("brief_slice") or "") + len(chunk.get("ask") or "")) // 4 + 3000
+
 
 class GenerationError(RuntimeError):
     """生成失败——必须报出来，不能产出一个"看起来成功但什么都没写"的结果。"""
@@ -156,13 +182,25 @@ def build_requirement_brief(tree, a11y_index, req_ids: list[str] | None) -> str:
                 parts.append(f"{st.keyword}: {(st.content or '').strip()}")
             parts.append("")
         names = by_req.get(n.id) or []
-        if names:
-            parts.append("必须提供的可访问名（Playwright 会用 getByLabel / getByRole(name) 找它们，"
-                         "控件必须与 label 原生关联，不得只靠 placeholder / class / DOM 顺序）：")
-            for e in names:
+        hard = [e for e in names if not (e.pattern or "").startswith("prose")]
+        soft = [e for e in names if (e.pattern or "").startswith("prose")]
+        if hard:
+            parts.append("**必须逐字兑现**的可访问名（需求里就是这么写的；Playwright 会用 "
+                         "getByLabel / getByRole(name) 找它们，控件必须与 label 原生关联，"
+                         "不得只靠 placeholder / class / DOM 顺序）：")
+            for e in hard:
                 role = e.role or "(role 未识别)"
                 opt = f"，选项：{e.options}" if e.options else ""
                 parts.append(f"  - [{role}] {e.name!r}{opt}")
+        if soft:
+            # §4.1 第 5 条的产物：散文抽取（`Click the X link` 这类句式），**尽力而为**。
+            # 明确标成"可能不准"，避免模型把它当成逐字契约去追幻影名字（那会烧 token）。
+            parts.append("从需求散文里抽出的目标（**尽力做完**，名字按你的判断取最贴近的；"
+                         "标 `role` 的条目标'必须有这个角色'，名字可以为空）：")
+            for e in soft:
+                role = e.role or "(role 任意)"
+                nm = f" {e.name!r}" if e.name else "（**只要该角色存在**，名字不限）"
+                parts.append(f"  - [{role}]{nm}")
         parts.append("")
     return "\n".join(parts)
 
@@ -190,139 +228,30 @@ def _design_prompt(requirement_brief: str) -> list[dict]:
   "api_endpoints": [{{"method": "POST", "path": "/api/auth/register",
                       "request": "字段名列表", "responses": ["201 + 字段", "400 + error 字段"]}}],
   "db_tables": [{{"name": "users", "columns": ["id", "username", "..."], "unique": ["username"]}}],
-  "session": "一句话说明会话怎么建、怎么在刷新后保持",
+  "auth": "如果需要登录/会话：一句话说明怎么建、怎么在刷新后保持；**不需要就写 \\"无\\"**",
   "error_shape": "错误响应体的 JSON 形状，前端按它渲染可见错误"
 }}
 
 要求：
 - 路由必须覆盖需求里出现的每一个路径（例如测试会直接点击 `a[href="/register"]`）。
-- `api_endpoints` 要够前端把三种场景都做完（成功 / 校验失败 / 重复冲突）。"""},
+- `api_endpoints` 要够前端把三种场景都做完（成功 / 校验失败 / 重复冲突）。
+- **一切按需求来**：需求里没有登录就别设计会话；没有的表就别列。
+  这张 JSON 会被**逐字**用于派生成块计划（路由→页面文件、端点→资源文件、表→建表脚本），
+  所以宁少勿多、路径要写成需求里出现的那种。"""},
     ]
 
 
 # ---------------------------------------------------------------- 分块生成
 # ⚠️ 为什么分块：实测**一次要太多文件会让网关断开连接**
 # （设计那一次 9051 输出 token 里有 8413 是 reasoning；把 5 个文件的实现压在一次里会更大）。
-# 分块之后每次只要 1–2 个文件，输出可控；代价是 brief 重发几次（input token 变多，但便宜）。
-
-CHUNKS: list[dict] = [
-    {
-        "name": "backend-schema",
-        "needs_skeleton": False,
-        "side": "backend",
-        "role": "你是资深数据库工程师。",
-        "files": ["backend/src/database/schema.sql"],
-        "ask": """输出**建表脚本**（一个纯 SQL 文件；不要任何 JS、不要解释文字）：
-- 每条语句以 `;` 结尾，一律 `CREATE TABLE IF NOT EXISTS`（幂等，可重复执行）。
-- 覆盖设计里 `db_tables` 的**所有**表，**外加会话表**（会话必须落库，重启后仍有效）。
-- 只输出 SQL：不要 `BEGIN`/`COMMIT`、不要 `PRAGMA`、不要 `INSERT`、不要 `ALTER`。
-- 列名与设计一致；唯一约束写 `UNIQUE(...)`；关联写 `REFERENCES 表(列)`；时间列给默认值。
-- 密码只存摘要，列名用 `password_hash`——**不要**出现明文密码列。
-- 这是整个应用**唯一**的建表位置（由后端在启动时执行）：
-  应用用到的每一个表都必须在这里出现，一个都不能少。""",
-    },
-    {
-        # ⚠️ 拆成一文件一调用（2026-09-21 闸门第 0 条实测）：原来"仓储 + 服务"合成一块，
-        # 请求 12,974 字符、输出 ~2,800 token —— 比赛网关上**连续两次 RemoteDisconnected**，
-        # 第三次才勉强过，整轮 run 的时间都耗在这里。同一模型在 M3a 就是这个形态
-        # （输出越大越容易被断），所以按"一文件一调用"切细：每次输出更短、更快结束。
-        "name": "backend-auth-repo",
-        "needs_skeleton": False,
-        "side": "backend",
-        "role": "你是资深 Node.js 后端工程师。",
-        "files": ["backend/src/auth/auth_repository.js"],
-        "ask": """实现**账号仓储**这一个文件：
-用脚手架 `./database` 导出的 `run/get/all/withTransaction` 做读写；
-表已经由 `backend/src/database/schema.sql` 定义好（本块之前产出，原文随本块附上，**列名照它写**）。
-**不要在任何 JS 里写 `CREATE TABLE`**，也不要改 `backend/src/database/` 下的任何文件。
-仓储模块只负责查询与写入：按用户名/邮箱查询；插入账号；建会话 / 查会话 / 删会话；
-**存密码摘要而不是明文**（用 Node 内置 crypto）。导出清晰的命名函数，供上层 service 调用。""",
-    },
-    {
-        "name": "backend-auth-service",
-        "needs_skeleton": False,
-        "side": "backend",
-        "role": "你是资深 Node.js 后端工程师。",
-        "files": ["backend/src/auth/auth_service.js"],
-        "ask": """实现**账号业务服务**这一个文件：
-- **全部服务端校验**逐条实现需求里列出的规则：3–32 位用户名字符集、12–128 位密码且含大小写+数字+特殊字符、
-  两次密码一致、证件类型/优惠类型必须来自白名单、手机号必须与国家区号组合通过校验、
-  姓名去空格后 2–100 个非空白字符、证件号码 6–30 位 ASCII 字母数字连字符、
-  邮箱可选但填写时必须合法且 ≤254 字符、协议必须勾选。
-- 重复用户名 / 重复邮箱（忽略大小写）要能报出来（唯一键冲突也要转成同一类错误）。
-- 校验失败**抛带中文 message 的错误**（消息要能让前端直接显示）。
-- 成功时用 crypto 生成会话令牌并调用仓储落库，**绝不返回密码或摘要**。
-- 仓储的**确切函数名**见随本块附上的 `auth_repository.js` 原文 —— 调它们，不要自己写 SQL。""",
-    },
-    {
-        "name": "backend-routes",
-        "needs_skeleton": True,
-        "side": "backend",
-        "role": "你是资深 Node.js 后端工程师。",
-        "files": ["backend/src/routes/auth_routes.js", "backend/src/app.js"],
-        "ask": """把 HTTP 层接起来：
-- `auth_routes.js`：注册（POST）、当前登录态（GET）、登出（POST 或 GET）三个端点；
-  注册成功时用 **httpOnly cookie** 建立会话；错误统一返回 JSON（含中文 message）。
-  会话的存储也要落库（用脚手架；表已经由 `schema.sql` 定义好，列名照它写），这样重启后仍然有效。
-- `app.js`：**输出完整文件**，把上面的路由挂上去（原文件里 `// route modules imports` 与
-  `// register routes` 就是接入点），**保留原有静态托管与 SPA fallback 逻辑**，
-  并加上 cookie 解析（不要引入新依赖，自己解析 `req.headers.cookie`）。""",
-    },
-    {
-        "name": "frontend-register",
-        "needs_skeleton": True,
-        "side": "frontend",
-        "role": "你是资深 React + TypeScript 前端工程师。",
-        "files": ["frontend/src/features/registration/RegisterPage.tsx"],
-        "ask": """实现**注册页**这一个组件（这是验收的核心）：
-- 用 `<label htmlFor>` + `id` 把每个控件的可访问名做成需求里给的中文名字（**逐字照抄需求里的名字**）。
-- 证件类型 / 优惠（待）类型 / 国家/地区代码 用**原生 `<select>`**：前两个初始 value 必须为空串，
-  国家/地区代码默认 `+86` 且至少含 `+84`；选项文字用需求里给的选项（护照、成人 等）。
-- 登录密码输入时，用**原生 `<meter>`** 显示密码强度（`aria-valuenow` 取 1/2/3 三档），并给它一个可访问名。
-- 协议复选框的可访问名要包含需求里给的字样；提交按钮的可访问名等于需求里给的名字。
-- 错误消息渲染在 `role="alert"` 的元素里（非空、可见、中文），来自后端返回的 message。
-- 提交成功由上层负责跳转，本组件只调用传入的 `onRegistered` 回调（props 里给）。
-- 只用 react / react-router-dom / axios（走 `frontend/src/api/index.ts` 的实例）。""",
-    },
-    {
-        # 同样拆细（一文件一调用的理由见 backend-auth-repo 的注释）
-        "name": "frontend-auth-client",
-        "needs_skeleton": True,
-        "side": "frontend",
-        "role": "你是资深 React + TypeScript 前端工程师。",
-        "files": ["frontend/src/api/auth.ts", "frontend/src/features/auth/AuthContext.tsx"],
-        "ask": """实现**前端认证客户端**这两个文件：
-- `api/auth.ts`：封装调用后端接口（用 `frontend/src/api/index.ts` 的 axios 实例，baseURL 已是 `/api`）。
-  接口路径与请求/响应字段**照随本块附上的后端路由原文**写，不要自己另设路径。
-- `AuthContext.tsx`：登录态（挂载时调当前登录态接口）、注册、登出；
-  **不要用 localStorage**（会话在 httpOnly cookie 里，靠 cookie 重新拉取）。
-  导出 `useAuth()`，后续页面靠它读写登录态。""",
-    },
-    {
-        "name": "frontend-shell",
-        "needs_skeleton": True,
-        "side": "frontend",
-        "role": "你是资深 React + TypeScript 前端工程师。",
-        "files": ["frontend/src/pages/HomePage.tsx", "frontend/src/App.tsx"],
-        "ask": """把应用外壳接起来：
-- `HomePage.tsx`：未登录时首页要有**一个可点击的注册入口**（测试会点击 `a[href="/register"]`，
-  所以这里要渲染一个 `href="/register"` 的链接）；已登录时**把当前用户名渲染在它自己的元素里**
-  （`<span>{user.username}</span>`——不要拼进 `Welcome, {name}!` 这类句子里，
-  外部测试按精确文本找这个值），以及一个可访问名含 `退出登录`（或 `Sign out`）的**链接**用于登出
-  （必须是 `role=link`，不要用 button 冒充）。
-- `App.tsx`：**输出完整文件**，用 `AuthProvider` 包住，并在 `<Routes>` 里加上 `/register` 路由。
-- 登录态一律走随本块附上的 `AuthContext.tsx`（别自己再存一份）。""",
-    },
-]
-
+# **怎么切块**由 `generate/chunkplan.py` 从设计 JSON 派生（一文件一调用）；这里只管拼请求。
 
 def _clip(text: str, limit: int, what: str, *, log=print) -> str:
     """把**每次都重发**的长文本截到上限。
 
-    为什么必须截（2026-09-21 闸门第 0 条第四次跑实测）：`design` 与骨架 brief 是**每一块都重发**的，
-    而 flash 的设计输出很啰嗦。那次 `backend-auth-service` 的请求因此涨到 **19,410 字符（81% 预算）**
-    → 网关 `RemoteDisconnected` → 被 `RequestTooLarge` 拦下、**整个 run 作废**。
-    设计只是"照它实现"的摘要，截断的代价远小于整轮失败的代价。
+    为什么必须截（实测）：`design` 与骨架 brief 是**每一块都重发**的，而 flash 的设计输出很啰嗦。
+    那次 `backend-auth-service` 的请求因此涨到 **19,410 字符（81% 预算）** → 网关 `RemoteDisconnected`
+    → 被 `RequestTooLarge` 拦下、**整个 run 作废**。设计只是"照它实现"的摘要，截断的代价远小于整轮失败。
     """
     if len(text) <= limit:
         return text
@@ -330,8 +259,14 @@ def _clip(text: str, limit: int, what: str, *, log=print) -> str:
     return text[:limit] + "\n…(已截断；按上面这些实现即可，不要猜被截掉的内容)"
 
 
-def _chunk_messages(chunk: dict, requirement_brief: str, design: str, skeleton: str,
+def _chunk_messages(chunk: dict, design: str, skeleton: str,
                     written: list[str], side_extra: str, *, log=print) -> list[dict]:
+    """拼这一块的请求。
+
+    **需求部分是这一块的切片**（`chunk['brief_slice']`），不是整份 brief——
+    keep 的全量 brief 是 15,923 字符，逐块重发会立刻顶满预算（见 `chunkplan.py`）。
+    schema 块的切片为空是**故意的**：表清单在它的 ask 里，而设计 JSON 每块都会带上。
+    """
     written_block = "\n".join(f"  - {w}" for w in written) if written else "  （还没有）"
     parts = [STACK_CONTRACT, ""]
     parts += ["## 设计（已定稿，照它实现）", "", _clip(design, DESIGN_IN_PROMPT_MAX, "design", log=log), ""]
@@ -340,8 +275,10 @@ def _chunk_messages(chunk: dict, requirement_brief: str, design: str, skeleton: 
         parts += ["## 现有骨架", "", skeleton, ""]
     if side_extra:
         parts += [side_extra, ""]
-    parts += ["## 需求", "", requirement_brief, "",
-              "## 本次任务（只做这些文件，不要越界）", "",
+    brief_slice = chunk.get("brief_slice") or ""
+    if brief_slice:
+        parts += ["## 需求（本块相关的部分）", "", brief_slice, ""]
+    parts += ["## 本次任务（只做这些文件，不要越界）", "",
               "必须要输出的文件：", "\n".join("  - " + f for f in chunk["files"]), "",
               "已经写好的文件（可 import / 遵循它们的约定）：", written_block, "",
               chunk["ask"], "",
@@ -428,30 +365,78 @@ def write_files(output_dir: Path, files: dict[str, str], log=print) -> list[str]
 # ---------------------------------------------------------------- 主入口
 
 def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
-                 req_ids: list[str] | None = None, log=print) -> dict:
-    """跑完整生成（1 次设计 + 逐块实现），落盘文件，返回摘要（含 token 用量）。"""
+                 req_ids: list[str] | None = None, app_hint: str | None = None,
+                 log=print) -> dict:
+    """跑完整生成（1 次设计 + 逐块实现），落盘文件，返回摘要（含 token 用量）。
+
+    **分块计划由 `generate/chunkplan.py` 从设计 JSON 派生**（不再有写死的 CHUNKS）——
+    这是 M2/M3b-1 的共同前置：原先的块指着注册应用的文件，拿它跑 keep 只会产出注册应用。
+    """
     requirement_brief = build_requirement_brief(tree, a11y_index, req_ids)
     skeleton = build_skeleton_brief(output_dir, log=log)
-    log(f"  需求 brief: {len(requirement_brief)} 字符")
+    log(f"  需求 brief: {len(requirement_brief)} 字符（每块只带自己那一片，见下）")
 
     design_path = output_dir / ".arc" / "design.json"
     if design_path.is_file() and not os.environ.get("PIPELINE_REGEN_DESIGN"):
         design = design_path.read_text(encoding="utf-8")
-        log(f"  [1/{len(CHUNKS)+1}] 设计… 复用已有 {design_path.name}（{len(design)} 字符）")
+        log(f"  [设计] 复用已有 {design_path.name}（{len(design)} 字符）")
     else:
-        log(f"  [1/{len(CHUNKS)+1}] 设计…")
+        log("  [设计]…")
         design = chat(cfg, _design_prompt(requirement_brief), stage="design", log=log)
         design_path.parent.mkdir(parents=True, exist_ok=True)
         design_path.write_text(design, encoding="utf-8")
         log(f"        设计 {len(design)} 字符 → {design_path.name}")
 
+    # ---- 从设计派生分块计划 ----
+    design_obj = parse_design(design)
+    chunks, plan_report = plan_chunks(design_obj, tree, a11y_index, req_ids=req_ids, log=log)
+    log(f"  分块计划（从设计派生）：{len(chunks)} 块 / 每条路由与表都有归属")
+    for c in chunks:
+        log(f"      · {c['name']:26s} {', '.join(c['files'])}"
+            f"   需求切片 {len(c['brief_slice'])} 字符")
+
+    # 验收用的干跑开关：只跑设计、打印计划、不调实现块（几千 token 而不是几十万）
+    if (os.environ.get("PIPELINE_DESIGN_ONLY") or "").strip() == "1":
+        log("  ⏹  PIPELINE_DESIGN_ONLY=1：只出计划，不实现（验收用）")
+        for c in chunks:
+            log(f"      · {c['name']:26s} 请求估算见 chunkplan 验收报告")
+        return {"design_only": True, "chunks": [c["name"] for c in chunks],
+                "files": [f for c in chunks for f in c["files"]],
+                "plan_report": plan_report, "usage": totals(cfg), "calls": list(cfg.calls)}
+
     written: list[str] = []
     written_by_chunk: dict[str, list[str]] = {}
-    for i, chunk in enumerate(CHUNKS, start=2):
-        log(f"  [{i}/{len(CHUNKS)+1}] {chunk['name']}：{'、'.join(chunk['files'])}")
+    budget = token_budget(app_hint)
+    skipped: list[str] = []
+    log(f"  token 预算 {budget:,}（到额就收尾，不硬跑；`PIPELINE_TOKEN_BUDGET` 可覆盖）")
+
+    # core 块（schema / 资源 / app.js / 外壳）**必须留够**：它们决定"应用能不能起来"。
+    # 到额时先切 `page` 块（页面与登录容器），再谈别的——§4.3 的优先级："先让少数场景真的能用"。
+    page_routes = {c["files"][0]: c.get("route_path")
+                   for c in chunks if c["name"].startswith("frontend-page-")}
+
+    for i, chunk in enumerate(chunks, start=1):
+        spent = totals(cfg)["total_tokens"]
+        if chunk.get("tier") != "core":
+            reserve = sum(_est_chunk_tokens(c) for c in chunks[i - 1:]
+                          if c.get("tier") == "core")
+            if spent + reserve >= budget:
+                skipped.append(chunk["name"])
+                log(f"  ⏭  [{i}/{len(chunks)}] {chunk['name']}：到额降级，跳过"
+                    f"（已花 {spent:,} + core 预留 {reserve:,} ≥ 预算 {budget:,}）")
+                continue
+        elif spent >= budget:
+            log(f"  ⚠️  已超预算（{spent:,} ≥ {budget:,}），但 {chunk['name']} 是 core，继续写"
+                "——宁可超一点，也要留下一个能起来的应用")
+
+        # 外壳块只接线"真的写出来了"的页面：预算切掉页面之后若照旧 import，
+        # 构建会直接失败（引用了不存在的文件）——那比少几个页面糟得多。
+        if chunk["name"] in ("frontend-app", "frontend-home"):
+            chunk = _sync_shell_ask(chunk, written, page_routes)
+
+        log(f"  [{i}/{len(chunks)}] {chunk['name']}：{'、'.join(chunk['files'])}")
         extra = _side_extra(chunk, output_dir, written, log=log)
-        text = chat(cfg, _chunk_messages(chunk, requirement_brief, design, skeleton, written, extra,
-                                                 log=log),
+        text = chat(cfg, _chunk_messages(chunk, design, skeleton, written, extra, log=log),
                     stage=f"implement-{chunk['name']}", log=log)
         files = parse_files(text)
         if not files:
@@ -460,6 +445,10 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
         written.extend(got)
         written_by_chunk[chunk["name"]] = got
         log(f"        -> {', '.join(got)}")
+
+    if skipped:
+        log(f"  ⚠️  到额降级：跳过 {len(skipped)} 个块（{', '.join(skipped)}）"
+            "——应用仍会被收尾成可构建可运行的形态")
 
     usage = totals(cfg)
     log(f"  生成完成：{len(written)} 个文件，token {usage['total_tokens']}"
@@ -472,31 +461,54 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
 
     return {"files": written, "files_by_chunk": written_by_chunk,
             "schema_injection": injected,
+            "token_budget": budget, "chunks_skipped": skipped,
+            "degraded": bool(skipped),
             "usage": usage, "calls": list(cfg.calls)}
+
+
+def _sync_shell_ask(chunk: dict, written: list[str], page_routes: dict) -> dict:
+    """把外壳块的 ask 重建成"只列真的写出来的页面"。
+
+    为什么必须（到额降级的后果）：预算切掉页面块之后，`App.tsx` 若照设计里的路由表 import，
+    会引用不存在的文件 → **构建直接失败** → 比"少几个页面"糟得多。
+    """
+    pages = [(w, page_routes.get(w) or "/") for w in written if w in page_routes]
+    if chunk["name"] == "frontend-app":
+        listing = "\n".join(f"  - `{p}` → `{f}`" for f, p in pages)
+        has_auth = any(w.startswith("frontend/src/features/auth/") for w in written)
+        ask = ("**输出完整文件**：把下面这些页面挂进 `<Routes>`"
+               + ("（用 `AuthProvider` 包住）" if has_auth else "")
+               + ("：\n" + listing if pages else "（目前没有可用页面，只保留首页路由）")
+               + "\n- **只 import 上面列出的文件**（它们确实存在）；不要引用没写出来的页面。\n"
+                 "- 保留原有的 `<BrowserRouter>` / `main.tsx` 接线，只改 `App.tsx`。")
+    else:      # frontend-home
+        listing = "\n".join(f"  - `{p}`" for _f, p in pages)
+        ask = ("实现首页（路由 `/`）：未登录/无数据时给出**可点击的入口链接**——"
+               "判据会按 `href` 点击进入，所以入口必须是真链接"
+               "（`<a href=\"…\">` / `<Link to=\"…\">`，**不要用 button 冒充**）：\n"
+               + (listing if pages else "  （没有其它路由时给一句说明即可）")
+               + "\n- 有数据时**把每条记录的关键字段渲染在它自己的元素里**（不要拼进句子）。")
+    return {**chunk, "ask": ask}
 
 
 def _side_extra(chunk: dict, output_dir: Path, written: list[str], *, log=print) -> str:
     """给这一块补一段「上游产物的原文」，让两边的接口契约逐字对齐。
 
-    ⚠️ **只带上这一块真正要调用的上游文件**（闸门第 0 条实测：把上游全塞进去会把请求
-    顶到 13k 字符，比赛网关会断连）。所以：仓储块只要 schema；服务块要 schema + 仓储；
-    路由块要 schema + 服务；前端块要路由。
+    ⚠️ **只带上这一块真正要调用的上游文件**（实测：把上游全塞进去会把请求顶到 13k 字符，
+    比赛网关会断连）。要带什么由**分块计划自己声明**（`chunk["wants"]`），不再按块名写死：
+      `"schema"`             → `backend/src/database/schema.sql`（列名对齐）
+      `"backend/src/routes/"`→ 已写好的全部后端路由文件（前端照它的接口/字段写）
+      `"authctx"`            → 已写好的 `frontend/src/features/auth/`（外壳照它接登录态）
     """
-    name = chunk.get("name", "")
-    if chunk.get("side") == "frontend":
-        want = [w for w in written if w.startswith("backend/src/routes/")]
-        # 外壳块要照着前面写好的认证客户端接（否则会自己另起一套登录态）
-        want += [w for w in written if w.startswith(("frontend/src/features/auth/",
-                                                     "frontend/src/api/"))]
-    elif name == "backend-auth-service":
-        want = [w for w in written if w.startswith("backend/src/auth/auth_repo")]
-    elif name == "backend-routes":
-        want = [w for w in written if w.startswith("backend/src/auth/auth_service")]
-    else:
-        want = []
-    # 建表脚本是**每个后端块**的接口契约（列名必须对齐），一并附上原文
-    if chunk.get("side") == "backend" and name != "backend-schema" and SCHEMA_REL in written:
-        want = [SCHEMA_REL, *want]
+    want: list[str] = []
+    for spec in chunk.get("wants", ()):
+        if spec == "schema":
+            if SCHEMA_REL in written:
+                want.append(SCHEMA_REL)
+        elif spec == "authctx":
+            want += [w for w in written if w.startswith("frontend/src/features/auth/")]
+        else:
+            want += [w for w in written if w.startswith(spec)]
     blocks = []
     budget = 7000          # 上游原文总量上限（把请求顶大就会被网关断连）
     for rel in want:

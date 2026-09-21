@@ -1,0 +1,40 @@
+{
+  "routes": [
+    {"path": "/", "component": "HomePage", "purpose": "首页，未登录显示 Register 链接，已登录显示用户名与 Sign out 链接"},
+    {"path": "/register", "component": "RegisterPage", "purpose": "旅客注册表单页，提交后创建账号与会话并返回首页"}
+  ],
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "request": ["username", "password", "confirmPassword", "idType", "name", "idNumber", "passengerType", "email", "countryCode", "phone", "agreeTerms"],
+      "responses": ["201 + {user: {id, username, name, email, countryCode, phone}, token}", "400 + {error: string}"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "request": [],
+      "responses": ["200 + {user: {id, username, name, email, countryCode, phone}}", "401 + {error: string}"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "request": [],
+      "responses": ["200 + {ok: true}", "401 + {error: string}"]
+    }
+  ],
+  "db_tables": [
+    {
+      "name": "users",
+      "columns": ["id", "username", "password_hash", "id_type", "name", "id_number", "passenger_type", "email", "country_code", "phone", "created_at"],
+      "unique": ["username", "email"]
+    },
+    {
+      "name": "sessions",
+      "columns": ["token", "user_id", "created_at"],
+      "unique": ["token"]
+    }
+  ],
+  "auth": "注册成功后服务端生成随机 token 写入 sessions 表并返回；前端保存 token（localStorage），axios 请求带 Authorization: Bearer <token>；GET /api/auth/me 校验 token 恢复登录态，刷新后仍保持；POST /api/auth/logout 删除会话。",
+  "error_shape": "{ \"error\": \"中文错误消息\" }"
+}

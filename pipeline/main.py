@@ -372,6 +372,28 @@ def cmd_compile(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _app_hint(tree, output_dir: Path) -> str:
+    """app 名（用于按 app 取 token 预算）：需求树的源路径末段，例如 `…/webapp/keep` → `keep`。
+
+    拿不到就返回空串 → 走默认预算（`PLAN.md` §4.3 的"每个阶段显式预算"）。
+    """
+    # 需求路径的形态不止一种：`…/webapp/keep/requirements/requirements.yaml`、
+    # `…/example/ticketbooking-quickstart/requirements.yaml`、平台输出的临时目录……
+    # 所以**从路径往上走，跳过已知的非 app 段**，取第一个剩下的名字。
+    skip = {".", "webapp", "example", "template", "app", "requirements", "requirement"}
+    for cand in (getattr(tree, "source_path", None), output_dir):
+        if not cand:
+            continue
+        parts = [Path(str(cand)).name] + [pp.name for pp in Path(str(cand)).parents]
+        for part in parts:
+            if not part or part.startswith(".") or part in skip:
+                continue
+            if part.endswith((".yaml", ".yml", ".json")):
+                continue
+            return part
+    return ""
+
+
 def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[str]) -> dict:
     """决定要不要生成、跑生成、把结果（含 token 用量）写进 run 事件与 stdout。"""
     from generate.implement import GenerationError, generate_app
@@ -396,10 +418,24 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
     print(f"实现生成（模型 {cfg.model}，需求范围 {req_ids or '全部有场景的叶子'}）")
     print("=" * 66)
     try:
-        result = generate_app(tree, a11y, output_dir, cfg, req_ids=req_ids or None)
+        # app 名用于按 app 取 token 预算；需求路径的末段就是 app 名（…/webapp/keep）
+        app_hint = _app_hint(tree, output_dir)
+        result = generate_app(tree, a11y, output_dir, cfg, req_ids=req_ids or None,
+                              app_hint=app_hint)
     except (GenerationError, LLMError, SchemaInjectionError) as exc:
         runtime.events.mark_run_failed(f"generation failed: {exc}")
         raise
+
+    # ---- 到额降级：预算已花完就不再进闭环（闭环是"打磨"，不决定有没有分）----
+    from generate.implement import token_budget
+    budget = token_budget(app_hint)
+    spent = (result.get("usage") or {}).get("total_tokens") or 0
+    if spent >= budget:
+        print()
+        print(f"⚠️  已用 {spent:,} ≥ 预算 {budget:,}：**跳过验证闭环**（到点就收）")
+        result["verify"] = {"skipped": True, "reason": "token-budget-exhausted",
+                            "spent": spent, "budget": budget}
+        return result
 
     # ---- 验证闭环：L1 闸门 → 模型自检 → 定向修复 → 复验（有界轮次）----
     # 开关：PIPELINE_VERIFY=0 跳过；PIPELINE_REPAIR_ROUNDS 轮次（默认 2）
@@ -410,7 +446,13 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
 
         brief = build_requirement_brief(tree, a11y, req_ids or None)
         wanted = set(req_ids) if req_ids else None
-        required = [e.name for e in a11y.entries if (wanted is None or e.req_id in wanted)]
+        # 两类靶子分开：引号式/规则式 = **必需**（精确名判、驱动修复）；
+        # 散文式（§4.1 第 5 条）= **fail-soft**（只告警、不驱动修复，见 verify/l1.py）
+        picked = [e for e in a11y.entries if (wanted is None or e.req_id in wanted)]
+        required = [e.name for e in picked
+                    if e.name and not (e.pattern or "").startswith("prose")]
+        soft = [e.name for e in picked
+                if e.name and (e.pattern or "").startswith("prose")]
         root = find_template_root()
         template_dir = (root / TEMPLATE_ID) if root else output_dir  # 找不到就当"无需比对"
         rounds = int((os.environ.get("PIPELINE_REPAIR_ROUNDS") or "3").strip() or 3)
@@ -421,6 +463,7 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
         print("=" * 66)
         result["verify"] = verify_loop(
             output_dir, requirement_brief=brief, required_names=required,
+            soft_names=soft,
             template_dir=template_dir, cfg=cfg, rounds=rounds, log=print,
         )
     return result

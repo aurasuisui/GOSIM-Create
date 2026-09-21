@@ -189,6 +189,36 @@ def check_accessible_names(output_dir: Path, required_names: list[str]) -> list[
     return findings
 
 
+def check_prose_names(output_dir: Path, soft_names) -> list[dict]:
+    """**散文靶子**（§4.1 第 5 条抽出来的那些）单独查，且**不判死**。
+
+    为什么必须分开（裁定的约束 3）：散文抽取会把 `0 results`、`count` 这类词一并捞进来，
+    它们是**文本断言/测试数据**，不是应用该暴露的可访问名。一旦进"必需名单"并驱动修复，
+    生成阶段就会**烧 token 去追幻影名字**——在按 `pass/CNY` 排序的赛制里等于直接扣分。
+    所以：**告警（进 history / 日志），不进 findings、不驱动修复、不影响 passed**。
+
+    判据口径（裁定原文）：散文式查"该名词是否出现在**某元素的可见文本或可访问名**里"——
+    这里用源码文本近似（前端源码里出现过就算），比精确名宽得多。
+    """
+    findings: list[dict] = []
+    front = output_dir / "frontend/src"
+    if not front.is_dir():
+        return findings
+    blob = "\n".join(f.read_text(encoding="utf-8", errors="replace")
+                     for f in front.rglob("*") if f.is_file())
+    low = blob.lower()
+    for name in soft_names:
+        if not name:
+            continue
+        if name.lower() not in low:
+            findings.append({
+                "kind": "accessible-name-soft-missing", "file": "frontend/src",
+                "detail": f"散文靶子 {name!r} 在前端源码里没出现（**fail-soft：只告警，不驱动修复**）",
+                "hint": "若需求确实要求这个控件，按最贴近的名字补上",
+            })
+    return findings
+
+
 def check_scaffold_intact(output_dir: Path, template_dir: Path) -> list[dict]:
     """数据库脚手架必须没被改过（改了就偏离平台契约）。"""
     findings: list[dict] = []
@@ -435,13 +465,14 @@ def check_scripts(output_dir: Path) -> list[dict]:
 
 
 def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str],
-           template_dir: Path, log=print) -> dict:
+           template_dir: Path, soft_names: list[str] | None = None, log=print) -> dict:
     """跑完整 L1，返回 {passed, findings}。findings 可**直接**喂给定向修复。"""
     findings: list[dict] = []
     checks = [
         ("imports", lambda: check_imports(output_dir)),
         ("routes_links", lambda: check_routes_and_links(output_dir, requirement_brief)),
         ("accessible_names", lambda: check_accessible_names(output_dir, required_names)),
+        ("prose_names", lambda: check_prose_names(output_dir, soft_names or [])),
         ("db_tables", lambda: check_db_tables(output_dir)),
         ("schema_injected", lambda: check_schema_injected(output_dir)),
         ("module_system", lambda: check_module_system(output_dir)),
@@ -451,13 +482,17 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         ("scripts", lambda: check_scripts(output_dir)),
     ]
     per_check: dict[str, int] = {}
+    soft: list[dict] = []
     for name, fn in checks:
         try:
             got = fn()
         except Exception as exc:  # noqa: BLE001 —— 检查器自己崩了也要报出来
             got = [{"kind": "checker-crashed", "file": name, "detail": repr(exc), "hint": "修检查器"}]
-        per_check[name] = len(got)
-        findings.extend(got)
+        # 散文靶子的缺失是**告警**：不进 findings（因此不驱动修复、不影响 passed），但必须可见
+        hard = [f for f in got if not str(f.get("kind", "")).endswith("-soft-missing")]
+        soft += [f for f in got if str(f.get("kind", "")).endswith("-soft-missing")]
+        per_check[name] = len(hard)
+        findings.extend(hard)
 
     log("  L1 闸门：")
     for name, n in per_check.items():
@@ -466,4 +501,9 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         log(f"      · [{f['kind']}] {f['file']}: {f['detail']}")
     if len(findings) > 12:
         log(f"      … 其余 {len(findings) - 12} 项")
-    return {"passed": not findings, "findings": findings, "per_check": per_check}
+    if soft:
+        log(f"  ⚠️  散文靶子未兑现 {len(soft)} 条（fail-soft，不驱动修复）：")
+        for f in soft[:6]:
+            log(f"      · {f['detail'][:96]}")
+    return {"passed": not findings, "findings": findings, "per_check": per_check,
+            "soft_findings": soft}

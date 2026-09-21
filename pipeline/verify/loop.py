@@ -50,7 +50,8 @@ def _mechanical_findings(findings: list[dict]) -> list[dict]:
 
 def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: list[str],
                 template_dir: Path, cfg: LLMConfig, rounds: int = 2,
-                max_files: int = 4, log=print) -> dict:
+                max_files: int = 4, soft_names: list[str] | None = None,
+                log=print) -> dict:
     """跑验证闭环，返回全过程记录（给 RunRecord / 文档用）。"""
     history: list[dict] = []
 
@@ -58,14 +59,16 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
         log("")
         log(f"=== 验证闭环 第 {rnd}/{rounds} 轮 ===")
         l1 = run_l1(output_dir, requirement_brief=requirement_brief,
-                    required_names=required_names, template_dir=template_dir, log=log)
+                    required_names=required_names, template_dir=template_dir,
+                    soft_names=soft_names or [], log=log)
 
         # 注入块丢了/落后了 → 先做**管线自己的确定性修复**（0 token），再重新取证
         if any(f["kind"] == "schema-not-injected" for f in l1["findings"]):
             log("  🔧 机械修复：重跑建表落位（管线动作，0 token）")
             _reinject(output_dir, log=log)
             l1 = run_l1(output_dir, requirement_brief=requirement_brief,
-                        required_names=required_names, template_dir=template_dir, log=log)
+                        required_names=required_names, template_dir=template_dir,
+                        soft_names=soft_names or [], log=log)
 
         # 每轮都做一次模型自检：L1 是静态的，抓不到"对不上需求"那类（M3a 的 5.3）
         violations = review(output_dir, requirement_brief, l1["findings"], cfg, log=log)
@@ -80,7 +83,9 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
 
         history.append({"round": rnd, "l1_passed": l1["passed"],
                         "l1_per_check": l1["per_check"],
-                        "l1_findings": l1["findings"], "review_violations": violations})
+                        "l1_findings": l1["findings"],
+                        "l1_soft": l1.get("soft_findings", []),
+                        "review_violations": violations})
 
         if not all_v:
             log("  ✅ 本轮无发现：L1 通过且自检无缺陷")
@@ -99,7 +104,8 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
             _reinject(output_dir, log=log)
 
     final = run_l1(output_dir, requirement_brief=requirement_brief,
-                   required_names=required_names, template_dir=template_dir, log=log)
+                   required_names=required_names, template_dir=template_dir,
+                   soft_names=soft_names or [], log=log)
     log(f"  闭环结束：L1 {'✅ 通过' if final['passed'] else '❌ 仍有发现'}；"
         f"累计 token {totals(cfg)['total_tokens']}")
     return {"history": history, "final_l1": final, "usage": totals(cfg), "calls": list(cfg.calls)}

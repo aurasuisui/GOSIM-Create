@@ -1,0 +1,32 @@
+{
+  "routes": [
+    {"path": "/", "component": "HomePage", "purpose": "主页：笔记列表（置顶/普通分区）、Take a note 表单、搜索、工具栏、设置入口"},
+    {"path": "/archive", "component": "ArchivePage", "purpose": "显示已归档笔记列表，支持 Unarchive"},
+    {"path": "/trash", "component": "TrashPage", "purpose": "显示已删除笔记列表，支持清空回收站"},
+    {"path": "/labels/:labelId", "component": "LabelNotesPage", "purpose": "按标签过滤的笔记列表"},
+    {"path": "/labels", "component": "EditLabelsPage", "purpose": "标签管理：创建、重命名、删除标签"},
+    {"path": "/settings", "component": "SettingsPage", "purpose": "详细设置页：移动新笔记/已勾选项目到底部，保存/取消"}
+  ],
+  "api_endpoints": [
+    {"method": "GET", "path": "/api/notes", "request": "query: labelId?, archived?, trashed?, q?", "responses": ["200 + notes[]", "500 + error"]},
+    {"method": "POST", "path": "/api/notes", "request": "title, content, color, pinned, labelIds[]", "responses": ["201 + note", "400 + error"]},
+    {"method": "PUT", "path": "/api/notes/:id", "request": "title?, content?, color?, pinned?, archived?, trashed?", "responses": ["200 + note", "404 + error"]},
+    {"method": "DELETE", "path": "/api/notes/:id", "request": "无", "responses": ["200 + {id}", "404 + error"]},
+    {"method": "POST", "path": "/api/notes/:id/restore", "request": "无", "responses": ["200 + note", "404 + error"]},
+    {"method": "DELETE", "path": "/api/trash", "request": "无", "responses": ["200 + {deleted: n}", "500 + error"]},
+    {"method": "GET", "path": "/api/labels", "request": "无", "responses": ["200 + labels[]", "500 + error"]},
+    {"method": "POST", "path": "/api/labels", "request": "name", "responses": ["201 + label", "400 + error", "409 + error"]},
+    {"method": "PUT", "path": "/api/labels/:id", "request": "name", "responses": ["200 + label", "404 + error", "409 + error"]},
+    {"method": "DELETE", "path": "/api/labels/:id", "request": "无", "responses": ["200 + {id}", "404 + error"]},
+    {"method": "GET", "path": "/api/settings", "request": "无", "responses": ["200 + settings", "500 + error"]},
+    {"method": "PUT", "path": "/api/settings", "request": "moveNewNotesToBottom, moveCheckedItemsToBottom", "responses": ["200 + settings", "400 + error"]}
+  ],
+  "db_tables": [
+    {"name": "notes", "columns": ["id", "title", "content", "color", "pinned", "archived", "trashed", "created_at", "updated_at", "deleted_at"], "unique": []},
+    {"name": "labels", "columns": ["id", "name", "is_default", "created_at"], "unique": ["name"]},
+    {"name": "note_labels", "columns": ["note_id", "label_id"], "unique": ["note_id", "label_id"]},
+    {"name": "settings", "columns": ["id", "move_new_notes_to_bottom", "move_checked_items_to_bottom"], "unique": []}
+  ],
+  "auth": "无",
+  "error_shape": "{\"error\": \"<message>\"}"
+}
