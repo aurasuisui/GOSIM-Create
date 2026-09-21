@@ -22,17 +22,35 @@ from verify.jsscan import scan  # noqa: E402
 
 EXTS = (".js", ".jsx", ".ts", ".tsx")
 
+# 默认排除：这些目录里的文件**不是我们生成的**（而且体量巨大——踩过一次：
+# 指向装过依赖的目录时扫了 7616 个文件、报 322 条误报，全在第三方代码里）。
+# 用 `--all` 关掉排除（只在明确想看第三方时用）。
+SKIP_DIRS = {"node_modules", "dist", "build", ".git", ".vite", "coverage", "__pycache__"}
+
+
+def collect(root: pathlib.Path, *, use_excludes: bool = True) -> list[pathlib.Path]:
+    out: list[pathlib.Path] = []
+    for f in sorted(root.rglob("*")):
+        if not (f.is_file() and f.suffix in EXTS):
+            continue
+        if use_excludes and any(part in SKIP_DIRS for part in f.parts):
+            continue
+        out.append(f)
+    return out
+
 
 def main() -> int:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    use_excludes = "--all" not in sys.argv
     targets: list[pathlib.Path] = []
-    for a in sys.argv[1:]:
+    for a in args:
         p = pathlib.Path(a)
         if p.is_dir():
-            targets += [f for f in sorted(p.rglob("*")) if f.is_file() and f.suffix in EXTS]
+            targets += collect(p, use_excludes=use_excludes)
         elif p.is_file():
             targets.append(p)
     if not targets:
-        print("用法：python eval/check_js_balance.py <文件或目录> …", file=sys.stderr)
+        print("用法：python eval/check_js_balance.py <文件或目录> … [--all]", file=sys.stderr)
         return 2
     bad = 0
     for f in targets:
@@ -42,7 +60,8 @@ def main() -> int:
             print(f"❌ {f}")
             for g in got[:6]:
                 print(f"     {g}")
-    print(f"扫描 {len(targets)} 个文件，问题 {bad} 个")
+    print(f"扫描 {len(targets)} 个文件，问题 {bad} 个"
+          + ("" if use_excludes else "（--all：未排除第三方目录）"))
     return 1 if bad else 0
 
 

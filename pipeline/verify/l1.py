@@ -52,6 +52,8 @@ RE_LINE_COMMENT = re.compile(r"//[^\n]*")
 # ESM 语法探测（后端必须是 CommonJS，见 check_module_system）
 RE_ESM_IMPORT = re.compile(r"^[ 	]*import\s+(?:[\w{*]|\()", re.M)
 RE_ESM_EXPORT = re.compile(r"^[ 	]*export\s+(?:default|const|let|var|function|class|\{|async)", re.M)
+# `<meter` 到它的第一个 `>`（属性区可能跨行）——用于查"有没有 aria-label"
+RE_METER = re.compile(r"<meter\b[^>]*>", re.I | re.S)
 RE_CREATE_TABLE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`\"\[]?(\w+)", re.I)
 
 
@@ -371,6 +373,46 @@ def check_syntax_balance(output_dir: Path) -> list[dict]:
     return findings
 
 
+def check_aria_name_sources(output_dir: Path) -> list[dict]:
+    """控件**必须有真正的 ARIA 名来源**——`<meter>` 缺 `aria-label` 是实测过的那一类。
+
+    为什么把它从 prompt 硬清单**下沉成静态检查**（`PLAN.md` §7 的纪律：
+    "能用零 token 静态判的规则，不许用生成去验"）：
+    - 已有的 `check_accessible_names` 只查"需求声明的名字在源码里出现过"——
+      `<label htmlFor="passwordStrength">密码强度</label>` 让字符串出现、检查通过，
+      而**元素的 ARIA 名仍然是空的**。
+    - 实测（闸门第 0 条 run c，探针 `output/lab04run/probe_meter.js`）：`<meter>` 只靠
+      `<label htmlFor>` 时 `getByRole('meter', {name:/密码强度/})` 命中 **0**（`getByLabel` 命中 1）；
+      补 `aria-label` 后命中 1，判据 5/6 → **6/6**。
+    - → 这条规则此前只写在生成/审查/修复三处 prompt 里（"靠模型记得"），现在**机器也会拦**。
+
+    范围**刻意窄**：只查 `<meter>`（有实测证据的那一个）。`<select>`/`<input>` 靠
+    `<label htmlFor>` 能正常得到 ARIA 名——**误报比漏报贵**（每条假发现 = 一轮全量修复）。
+    """
+    findings: list[dict] = []
+    front = output_dir / "frontend/src"
+    if not front.is_dir():
+        return findings
+    for f in sorted(front.rglob("*")):
+        if not (f.is_file() and f.suffix in (".ts", ".tsx", ".js", ".jsx")):
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for m in RE_METER.finditer(text):
+            head = m.group(0)                       # `<meter` … 它的第一个 `>`
+            if "aria-label" in head or "aria-labelledby" in head:
+                continue
+            rel = f.relative_to(output_dir).as_posix()
+            findings.append({
+                "kind": "meter-without-aria-label", "file": rel,
+                "detail": f"第 {text[:m.start()].count(chr(10)) + 1} 行的 `<meter>` 没有 "
+                          "`aria-label`/`aria-labelledby` —— 只写 `<label htmlFor>` 时它的 "
+                          "**ARIA 可访问名是空的**：`getByLabel` 找得到，但 "
+                          "`getByRole('meter', {name})` **找不到**（实测会直接掉一条判据）",
+                "hint": "给这个 `<meter>` 加 `aria-label=\"密码强度\"`（`<label>` 保留，两者都要）",
+            })
+    return findings
+
+
 def check_scripts(output_dir: Path) -> list[dict]:
     """平台要求的 npm scripts 必须在（C4/C5）。"""
     findings: list[dict] = []
@@ -404,6 +446,7 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         ("schema_injected", lambda: check_schema_injected(output_dir)),
         ("module_system", lambda: check_module_system(output_dir)),
         ("syntax_balance", lambda: check_syntax_balance(output_dir)),
+        ("aria_name_sources", lambda: check_aria_name_sources(output_dir)),
         ("scaffold", lambda: check_scaffold_intact(output_dir, template_dir)),
         ("scripts", lambda: check_scripts(output_dir)),
     ]

@@ -132,6 +132,44 @@ def resolve_inputs(args: argparse.Namespace) -> ResolvedInputs:
     return ResolvedInputs(requirement_path=req, output_dir=out, sources=sources, notes=notes)
 
 
+# ---------- 凭据体检（掩码，绝不打印值）----------
+
+def log_model_env(output_dir: Path) -> None:
+    """打一行**掩码**凭据检查：模型的来源、base_url、key 的存在性与长度。
+
+    为什么必须有（`PLAN.md` §7 M3b-1 的 A1）：整条链上**只有这一个假设是"为假就全盘归零"**——
+    平台注入不注入 `MODEL`、有没有可用的 key、网关认不认。而**"平台不注入 key"至今没有定论**
+    （V5 只看了 stdio，没确认环境里 key 的存在性）。平台上的日志是我们唯一能看见的东西，
+    所以每次 run 都要把这三件事的**存在性**写进日志——**值一个都不打印**。
+
+    判读：`key: absent` 而 `model: deepseek-v4-flash` → 生成会跳过（`run_generation` 说明原因），
+    这一轮不可能有功能；`base_url` 不是比赛网关 → 说明平台改了口径。
+    """
+    from generate.llm import LLMConfig      # 延迟 import，与 run_generation 保持一致
+    cfg = LLMConfig.from_env(output_dir=output_dir)
+    _os = os
+
+    def mask(s: str) -> str:
+        # **只报长度，不报任何字符**——前缀也算值的一部分，日志会被平台留存
+        return f"set(len={len(s)})" if s else "absent"
+
+    src_model = next((n for n in ("PIPELINE_LLM_MODEL", "MODEL", "ARC_MODEL")
+                      if (_os.environ.get(n) or "").strip()), None)
+    print("=== 凭据体检（掩码；只报存在性与长度，不打印值）===")
+    print(f"  model    : {cfg.model or '(空)'}"
+          f"   ← {'环境变量 ' + src_model if src_model else '默认/工作区 .env'}")
+    print(f"  base_url : {cfg.base_url or '(空)'}")
+    print(f"  key      : {mask(cfg.api_key)}"
+          f"   ← {'环境变量' if _os.environ.get('PIPELINE_LLM_API_KEY') or _os.environ.get('OPENAI_API_KEY') or _os.environ.get('ARC_API_KEY') else '工作区 .env（平台路径上不会有）'}")
+    print(f"  VISUAL_MODEL : {_os.environ.get('VISUAL_MODEL') or 'absent'}（本管线暂不用视觉）")
+    print(f"  ARCBENCH_OUTPUT_DIR : {_os.environ.get('ARCBENCH_OUTPUT_DIR') or 'absent'}")
+    print(f"  ARCBENCH_RUNNER_EVENTS_PATH : {_os.environ.get('ARCBENCH_RUNNER_EVENTS_PATH') or 'absent'}")
+    if not cfg.api_key:
+        print("  ⚠️  没有 key：实现生成会被跳过（只有骨架落地）——这一轮不会有功能，"
+              "但**仍会产出 frontend/ + backend/**（平台第一道闸能过）。")
+    print()
+
+
 # ---------- 第 1 阶段 ----------
 
 def run_stage1(runtime: AgentRuntime, inputs: ResolvedInputs, work_dir: Path):
@@ -281,6 +319,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
     print(f"  事件落点    : {runtime.paths.runner_events_path}")
     print(f"  traceability: {runtime.paths.traceability_dir}")
     print()
+    log_model_env(output_dir)
 
     runtime.events.mark_run_started("stage1: requirement compilation")
     exit_code = 0
