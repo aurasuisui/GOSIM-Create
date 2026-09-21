@@ -337,6 +337,7 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
     """决定要不要生成、跑生成、把结果（含 token 用量）写进 run 事件与 stdout。"""
     from generate.implement import GenerationError, generate_app
     from generate.llm import LLMConfig, LLMError
+    from generate.schema import SchemaInjectionError
 
     if mode == "0":
         print()
@@ -357,7 +358,7 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
     print("=" * 66)
     try:
         result = generate_app(tree, a11y, output_dir, cfg, req_ids=req_ids or None)
-    except (GenerationError, LLMError) as exc:
+    except (GenerationError, LLMError, SchemaInjectionError) as exc:
         runtime.events.mark_run_failed(f"generation failed: {exc}")
         raise
 

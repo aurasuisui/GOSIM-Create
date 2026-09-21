@@ -1,0 +1,37 @@
+{
+  "run_id": "20260921T045544Z-quickstart-score-gate0c.judges",
+  "arm_id": "gate0c",
+  "round": 1,
+  "change_description": null,
+  "captured_at": "2026-09-21T04:56:23Z",
+  "app": "quickstart",
+  "port": 3301,
+  "arc_test_date": null,
+  "model": "unknown",
+  "visual_model": null,
+  "ci_env": null,
+  "retries_effective": 0,
+  "load_snapshot": "status='空闲' port3301_listeners=2",
+  "pipeline": {
+    "git_commit": "bea67d07f8add263316833df503e7e398375d7e7",
+    "git_dirty": true,
+    "git_branch": "main"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": null,
+  "log_path": "runs/20260921T045544Z-quickstart-score-gate0c.judges.log",
+  "tests_total": 6,
+  "tests_passed": 5,
+  "tests_failed": 1,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.8333,
+  "per_test_failed": [],
+  "failure_class_counts": {},
+  "retries_observed": 0,
+  "has_summary": true
+}

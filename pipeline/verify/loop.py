@@ -15,8 +15,37 @@ from __future__ import annotations
 from pathlib import Path
 
 from generate.llm import LLMConfig, totals
+from generate.schema import SCHEMA_REL, inject_schema
 from verify.l1 import run_l1
 from verify.selfcheck import repair, review
+
+
+def _reinject(output_dir: Path, *, log=print) -> None:
+    """重跑建表落位。**失败不抛**——让 L1 把它报成一条发现，而不是让整轮生成炸掉。"""
+    try:
+        inject_schema(output_dir, log=log)
+    except Exception as exc:  # noqa: BLE001
+        log(f"  ⚠️  建表落位失败（{type(exc).__name__}: {exc}）——L1 会把它报出来")
+
+
+def _mechanical_findings(findings: list[dict]) -> list[dict]:
+    """L1 的机械发现 → 违规形状。两类要特殊处理：
+
+    · `schema-not-injected` → **不叫模型**：修法是管线动作（重注入），改代码改不出来
+    · `table-not-created`   → 把 file **路由到 `schema.sql`**：否则模型会跑到仓储模块里
+      写 `CREATE TABLE`（能骗过静态检查，但落位不确定，正是 gate 0 挂掉的那个坑）
+    """
+    out: list[dict] = []
+    for f in findings:
+        if f["kind"] == "schema-not-injected":
+            continue
+        rel = SCHEMA_REL if f["kind"] == "table-not-created" else f["file"]
+        if rel.endswith("package.json"):
+            continue
+        if rel.startswith("backend/src/database/") and rel != SCHEMA_REL:
+            continue                       # 脚手架文件禁改（init_db.js 由管线自己管）
+        out.append({"file": rel, "problem": f["detail"], "fix": f["hint"]})
+    return out
 
 
 def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: list[str],
@@ -31,6 +60,13 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
         l1 = run_l1(output_dir, requirement_brief=requirement_brief,
                     required_names=required_names, template_dir=template_dir, log=log)
 
+        # 注入块丢了/落后了 → 先做**管线自己的确定性修复**（0 token），再重新取证
+        if any(f["kind"] == "schema-not-injected" for f in l1["findings"]):
+            log("  🔧 机械修复：重跑建表落位（管线动作，0 token）")
+            _reinject(output_dir, log=log)
+            l1 = run_l1(output_dir, requirement_brief=requirement_brief,
+                        required_names=required_names, template_dir=template_dir, log=log)
+
         # 每轮都做一次模型自检：L1 是静态的，抓不到"对不上需求"那类（M3a 的 5.3）
         violations = review(output_dir, requirement_brief, l1["findings"], cfg, log=log)
         log(f"  自检发现 {len(violations)} 条对不上需求的缺陷")
@@ -38,9 +74,7 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
             log(f"    · {v['file']}: {v['problem'][:90]}")
 
         # 把 L1 的机械发现也转成同一种"违规"形状，一起修
-        mech = [{"file": f["file"], "problem": f["detail"], "fix": f["hint"]}
-                for f in l1["findings"]
-                if not f["file"].endswith("package.json") and "/database/" not in f["file"]]
+        mech = _mechanical_findings(l1["findings"])
         # 依赖同名文件的问题合并（同一次调用里一起修）
         all_v = mech + violations
 
@@ -59,6 +93,10 @@ def verify_loop(output_dir: Path, *, requirement_brief: str, required_names: lis
         written = repair(output_dir, all_v, cfg, log=log, max_files=max_files)
         history[-1]["repaired_files"] = written
         log(f"  本轮修了 {len(written)} 个文件：{', '.join(written) or '（无）'}")
+
+        # schema.sql 可能刚被修过 → 重新落位，否则新表不会在启动时建
+        if SCHEMA_REL in written:
+            _reinject(output_dir, log=log)
 
     final = run_l1(output_dir, requirement_brief=requirement_brief,
                    required_names=required_names, template_dir=template_dir, log=log)

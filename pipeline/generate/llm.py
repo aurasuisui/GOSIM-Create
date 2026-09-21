@@ -25,6 +25,13 @@ from pathlib import Path
 DEFAULT_BASE_URL = "https://api.arc-bench.com/v1"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
+# 本次进程的 run 标识：让 metrics.jsonl 的每一行都能归到一次 run。
+# 为什么需要（2026-09-21 的一次数错）：一次 run 里有**两轮** selfcheck→repair，
+# 而记录里没有轮次标识，抄表的人只抄到前半段就得到中间态（131,360 而不是 156,343）。
+# `call_index` 给出无歧义的顺序，`run_id` 给出归属；可用 PIPELINE_RUN_ID 显式覆盖。
+RUN_ID = (os.environ.get("PIPELINE_RUN_ID") or "").strip() or (
+    datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-p" + str(os.getpid()))
+
 
 def _global_extra() -> dict:
     """全局请求参数（M3b-1 标定/生产都用它）：
@@ -43,6 +50,16 @@ def _global_extra() -> dict:
         return got if isinstance(got, dict) else {}
     except Exception:  # noqa: BLE001 —— 写错了就当没设，不要静默改行为
         return {}
+
+
+class RequestTooLarge(RuntimeError):
+    """单次请求超出输入预算 —— 调用方应当**分块**，而不是重发同一个大请求。
+
+    为什么要有这个类型（2026-09-21 立的客户端规则）：「大请求被网关丢」已经出现三次
+    （M3a 后端块、M3a design 的输出全被 reasoning 吃掉、M3b-1 的 selfcheck-review
+    连续 `RemoteDisconnected` ×2）。所以不再逐点打补丁，改成**预算 + 分块**：
+    超限或"偏大 + 被断连"都抛这个，由调用方按语义切分。
+    """
 
 
 class LLMError(RuntimeError):
@@ -108,6 +125,17 @@ def _from_dotenv(name: str) -> str:
     return ""
 
 
+# ---- 单次请求的输入预算（2026-09-21 立的客户端规则）----
+# 「大请求被网关丢」已经出现三次：M3a 的后端块、M3a 的 design（输出全被 reasoning 吃掉）、
+# 本轮 M3b-1 的 selfcheck-review（连续 RemoteDisconnected ×2）。
+# → 不再逐点打补丁，改成**预算 + 分块**：超限就报 `RequestTooLarge`，由调用方按语义切分。
+MAX_REQUEST_CHARS = int((os.environ.get("PIPELINE_LLM_MAX_REQUEST_CHARS") or "24000").strip() or 24000)
+
+
+def estimate_request_chars(messages: list[dict]) -> int:
+    return sum(len(m.get("content") or "") for m in messages)
+
+
 def chat(cfg: LLMConfig, messages: list[dict], *, stage: str, node_id: str = "",
          temperature: float = 0.2, max_tokens: int | None = None,
          extra: dict | None = None,
@@ -120,6 +148,12 @@ def chat(cfg: LLMConfig, messages: list[dict], *, stage: str, node_id: str = "",
     import requests  # 延迟 import：只有真要调用时才需要
 
     cfg.require_key()
+    size = estimate_request_chars(messages)
+    if size > MAX_REQUEST_CHARS:
+        raise RequestTooLarge(
+            f"请求输入 {size} 字符 > 预算 {MAX_REQUEST_CHARS}（PIPELINE_LLM_MAX_REQUEST_CHARS 可调）"
+            f"：请按语义**分块**（stage={stage}），不要重发同一个大请求"
+        )
     url = f"{cfg.base_url}/chat/completions"
     payload: dict = {"model": cfg.model, "messages": messages, "temperature": temperature}
     if max_tokens:
@@ -139,8 +173,19 @@ def chat(cfg: LLMConfig, messages: list[dict], *, stage: str, node_id: str = "",
                 url, json=payload, timeout=cfg.timeout_s,
                 headers={"Authorization": f"Bearer {cfg.api_key}", "Content-Type": "application/json"},
             )
-        except Exception as exc:  # noqa: BLE001 —— 连接层失败：可重试
+        except Exception as exc:  # noqa: BLE001 —— 连接层失败
             last_err = f"连接失败：{exc!r}"
+            # 请求**接近预算** + 被断连 = 多半是网关丢大请求，重发同一个没有意义，
+            # 抛"太大"让调用方分块。
+            # ⚠️ 阈值从 `MAX_REQUEST_CHARS // 2`（12,000）收紧到 0.8×预算，原因是实测：
+            # 闸门第 0 条第三次跑时，**12,974 字符**（54% 预算）的 backend-auth 也被断连，
+            # 老阈值把它判成"太大" → **直接抛出去、整个 run 作废**。
+            # 而 13k 字符的请求只是中等大小，重试才是对的（连接层抖动比"真太大"常见得多）。
+            if "RemoteDisconnected" in repr(exc) and size > int(MAX_REQUEST_CHARS * 0.8):
+                raise RequestTooLarge(
+                    f"网关断开且请求接近预算（{size} 字符 ≈ {size / MAX_REQUEST_CHARS:.0%}，"
+                    f"stage={stage}）：**应当分块**再试"
+                ) from exc
             resp = None
         else:
             if resp.status_code in (429, 500, 502, 503, 504):
@@ -148,26 +193,40 @@ def chat(cfg: LLMConfig, messages: list[dict], *, stage: str, node_id: str = "",
             elif resp.status_code != 200:
                 raise LLMError(f"{url} 返回 {resp.status_code}（不重试）：{resp.text[:400]}")
             else:
-                break  # 成功
+                try:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                except Exception as exc:  # noqa: BLE001
+                    raise LLMError(
+                        f"响应结构不认识：{exc!r} 原文前 400 字：{resp.text[:400]}"
+                    ) from exc
+                # ⚠️ **先记用量再看内容**：空内容的调用前几天**没有**被记账（metrics.jsonl 里
+                # 直接少一条），于是"这一次 run 花了多少"永远对不上。
+                rec = _record(cfg, data.get("usage") or {}, stage=stage, node_id=node_id,
+                              started=started, empty=not (content or "").strip())
+                if (content or "").strip():
+                    return content
+                # 空内容 = **整段输出被 reasoning 吃掉**。实测（2026-09-21 闸门第 0 条那次）：
+                # 同一 run 的 design 用掉 83% 输出，紧接的 schema 块直接返回空 → 生成失败、
+                # 连产物都没有（平台侧就是 0 分 + "Run failed"）。
+                # 这是**可重试**的：同一个请求换个采样就能返回正文。所以走重试，不要立刻抛。
+                last_err = (f"空内容（输出 {rec.get('output_tokens')} token，"
+                            f"其中 reasoning {rec.get('reasoning_tokens')}）——整段被 reasoning 吃掉")
 
         if attempt < attempts:
             wait = 5 * attempt
             log(f"  ⚠️  {stage} 第 {attempt}/{attempts} 次失败（{last_err}），{wait}s 后重试")
             time.sleep(wait)
-    else:
-        raise LLMError(f"{stage} 连续 {attempts} 次失败，最后一次：{last_err}")
+    raise LLMError(f"{stage} 连续 {attempts} 次失败，最后一次：{last_err}")
 
-    try:
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-    except Exception as exc:  # noqa: BLE001
-        raise LLMError(f"响应结构不认识：{exc!r} 原文前 400 字：{resp.text[:400]}") from exc
-    if not (content or "").strip():
-        raise LLMError(f"{stage} 返回了空内容（可能整段输出都被 reasoning 吃掉或截断）")
 
-    usage = data.get("usage") or {}
+def _record(cfg: LLMConfig, usage: dict, *, stage: str, node_id: str, started: float,
+            empty: bool = False) -> dict:
+    """记一次调用的用量（**成功与失败都要记**），返回记录本身。"""
     record = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "run_id": RUN_ID,
+        "call_index": len(cfg.calls) + 1,
         "stage": stage,
         "node_id": node_id,
         "model": cfg.model,
@@ -178,12 +237,14 @@ def chat(cfg: LLMConfig, messages: list[dict], *, stage: str, node_id: str = "",
         "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
         "elapsed_s": round(time.time() - started, 1),
     }
+    if empty:
+        record["empty_content"] = True
     cfg.calls.append(record)
     if cfg.metrics_path:
         cfg.metrics_path.parent.mkdir(parents=True, exist_ok=True)
         with cfg.metrics_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return content
+    return record
 
 
 def totals(cfg: LLMConfig) -> dict:

@@ -23,6 +23,11 @@ import json
 import re
 from pathlib import Path
 
+from generate.schema import (
+    BEGIN_MARK, INIT_DB_REL, SCHEMA_REL, read_schema_statements,
+)
+from verify.jsscan import scan
+
 FRONTEND_EXT = (".ts", ".tsx", ".js", ".jsx")
 NODE_BUILTINS = {
     "fs", "path", "crypto", "http", "https", "os", "util", "url", "events", "stream",
@@ -40,6 +45,24 @@ RE_TO = re.compile(r"""<\s*(?:Link|NavLink)\b[^>]*?\bto\s*=\s*['"]([^'"]+)['"]""
 # markdown 里的图片/链接路径（如 ./reference/register.png）不是页面路径
 RE_MD_RESOURCE = re.compile(r"\]\(([^)]*)\)")
 RE_PATH_IN_TEXT = re.compile(r"(?<![\w.\-])((?:/[a-zA-Z][\w\-/]*))")
+
+
+RE_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+RE_LINE_COMMENT = re.compile(r"//[^\n]*")
+# ESM 语法探测（后端必须是 CommonJS，见 check_module_system）
+RE_ESM_IMPORT = re.compile(r"^[ 	]*import\s+(?:[\w{*]|\()", re.M)
+RE_ESM_EXPORT = re.compile(r"^[ 	]*export\s+(?:default|const|let|var|function|class|\{|async)", re.M)
+RE_CREATE_TABLE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`\"\[]?(\w+)", re.I)
+
+
+def strip_js_comments(text: str) -> str:
+    """先剥掉 JS 注释再匹配 SQL。
+
+    为什么必须有这一步：`seed_db.js` 的 JSDoc 里写着 "…FROM tests…" 之类，
+    不解注释就会把**注释当 SQL 读** → 报出 `test_harness` / `tests` 两个不存在的表
+    （计划已定位：`seed_db.js:15-16`）。
+    """
+    return RE_LINE_COMMENT.sub("", RE_BLOCK_COMMENT.sub("", text))
 
 
 def _iter_sources(output_dir: Path):
@@ -185,6 +208,169 @@ def check_scaffold_intact(output_dir: Path, template_dir: Path) -> list[dict]:
     return findings
 
 
+def check_db_tables(output_dir: Path) -> list[dict]:
+    """**SQL 里用到的表，必须在后端代码里被 CREATE 过**（建在哪都行，但必须有）。
+
+    为什么这条是**真判据**（2026-09-21 三组 artifact 对照实测）：
+
+    | artifact | 模型 | 仓储里有没有 `CREATE TABLE` | 结果 |
+    |---|---|---|---|
+    | M3b-0 | `deepseek-chat` | ✅ 有（`auth_repository.js`） | **6/6** |
+    | 标定组 | `deepseek-v4-flash` | ❌ 没有 | 3/6 |
+    | 闸门 0 组 | `deepseek-v4-flash` | ❌ 没有 | 3/6 |
+
+    两个 flash 产物的后端里，`CREATE TABLE` **只出现在模板自己的注释里** →
+    注册接口 `SELECT … FROM users` 抛 `SQLITE_ERROR: no such table` →
+    要么被 route 捕获成 500（用户名永远不出现 → 三条判据挂），
+    要么以未捕获 rejection 把 Node 打死（`glm-5.3-flash` 那次，后面 5 条全 `ERR_CONNECTION_REFUSED`）。
+
+    ⚠️ **教训（记下来免得再犯）**：我先做过这版检查，然后因为**更严的"必须建在 init_db.js 里"那版
+    误报了 M3b-0**（它建在仓储模块里、照样通过），就把整个检查撤了。
+    **撤错了**——放宽到"建在后端任何地方都算"就能正确区分三组。**一条检查误报，应该先放宽判据，
+    而不是删掉它。**
+
+    例外：`test_harness.js` 自建 `:memory:` 库，它的 SQL 不算。
+    """
+    findings: list[dict] = []
+    backend = output_dir / "backend/src"
+    if not backend.is_dir():
+        return findings
+    re_from = re.compile(r"(?:FROM|INTO|UPDATE)\s+[`\"\[]?(\w+)", re.I)
+    created: set[str] = set()
+    used: set[tuple[str, str]] = set()
+    for f in sorted(backend.rglob("*.js")):
+        if f.name == "test_harness.js":
+            continue
+        rel = f.relative_to(output_dir).as_posix()
+        text = strip_js_comments(f.read_text(encoding="utf-8", errors="replace"))
+        created |= {m.group(1).lower() for m in RE_CREATE_TABLE.finditer(text)}
+        used |= {(m.group(1).lower(), rel) for m in re_from.finditer(text)}
+    noise = {"select", "1", "sqlite_master"}
+    # ⚠️ `used` 是 (表名, 文件) 元组集合，`created` 只有表名——**不能直接相减**
+    # （元组集合 − 名字集合 = 永远不消掉任何元素，于是每个产物都报同样的几条）。
+    # 计划把这条定位出来了；这个 bug 让闭环一直在修「幻影」：每条假发现 = 一次全量重发。
+    for table, rel in sorted((t, r) for t, r in used if t not in created):
+        if table in noise or table.startswith("sqlite_"):
+            continue
+        findings.append({
+            "kind": "table-not-created", "file": rel,
+            "detail": f"SQL 里用到了表 `{table}`，但后端**没有任何地方 CREATE 它** "
+                      "（会抛 SQLITE_ERROR：route 里被吞成 500，未捕获时直接打死 Node）",
+            "hint": f"把 `CREATE TABLE IF NOT EXISTS {table} (…)` 加进 `{SCHEMA_REL}`"
+                    "（管线会把它注入到后端启动流程里执行）——"
+                    "**不要**写在 JS 里，也不要改 `init_db.js`",
+        })
+    return findings
+
+
+def check_schema_injected(output_dir: Path) -> list[dict]:
+    """`schema.sql` 里的表，必须真的进了 `init_db.js` 的注入块。
+
+    为什么单列一条（而不是并进 `check_db_tables`）：注入是**管线的确定性动作**，
+    它唯一会静默失效的方式是 `init_db.js` 被整体重写（越界写入或人工手改）→
+    三个锚点全不命中，而 `check_db_tables` 只看到"SQL 里用到、JS 里没 CREATE"这个
+    结果，看不出原因。这条把原因直接指出来，而且它的修法是**零 token 的管线动作**
+    （`verify/loop.py` 收到这个 kind 就直接重注入，不叫模型）。
+    """
+    schema_path = output_dir / SCHEMA_REL
+    init_path = output_dir / INIT_DB_REL
+    if not schema_path.is_file() or not init_path.is_file():
+        return []
+    statements = read_schema_statements(output_dir)
+    tables = sorted({m.group(1).lower() for m in RE_CREATE_TABLE.finditer("\n".join(statements))})
+    if not tables:
+        return []
+    text = init_path.read_text(encoding="utf-8", errors="replace")
+    if BEGIN_MARK not in text:
+        return [{
+            "kind": "schema-not-injected", "file": INIT_DB_REL,
+            "detail": f"`{SCHEMA_REL}` 定义了 {len(tables)} 张表，但 `{INIT_DB_REL}` 里"
+                      "没有管线的注入块——启动时不会建表（注册 500 / 未捕获时直接把 Node 打死）",
+            "hint": "重跑建表落位（管线确定性动作，无需模型）",
+        }]
+    injected = {m.group(1).lower() for m in RE_CREATE_TABLE.finditer(text)}
+    missing = [t for t in tables if t not in injected]
+    if missing:
+        return [{
+            "kind": "schema-not-injected", "file": INIT_DB_REL,
+            "detail": f"`{SCHEMA_REL}` 里有 {len(missing)} 张表没进注入块：{missing}"
+                      "（多半是 schema 改了但没重新注入）",
+            "hint": "重跑建表落位（管线确定性动作，无需模型）",
+        }]
+    return []
+
+
+def check_module_system(output_dir: Path) -> list[dict]:
+    """后端 `.js` **不许用 ESM 语法**——模板是 CommonJS（`package.json` 没有 `"type": "module"`）。
+
+    为什么这条是**真判据**（2026-09-21 闸门第 0 条 run d 实测）：模型给
+    `backend/src/auth/auth_repository.js` 写了 `import { run, get } from '../database/index.js'`，
+    而脚手架 `database/index.js` 是 `module.exports = {…}` →
+    Node 直接
+    `SyntaxError: The requested module '../database/index.js' does not provide an export named 'get'`
+    → **后端进程起不来**（node 立刻退出）→ 冒烟 `GET /` 连不上 → 判据 0/6。
+    这一条的形态是"应用一起来就崩"，不是"功能没做对"，而且是**静态可判**的。
+    （那次闭环的审查**发现了**这个缺陷，但修复改的是 `app.js`——症状文件 vs 根因文件分家了；
+    所以这条检查的价值就是**在生成阶段直接点名那个真正要改的文件**。）
+    """
+    findings: list[dict] = []
+    pkg = output_dir / "backend/package.json"
+    if pkg.is_file():
+        try:
+            if (json.loads(pkg.read_text(encoding="utf-8")).get("type") == "module"):
+                return findings          # 真是 ESM 工程，不拦
+        except Exception:  # noqa: BLE001
+            pass
+    backend = output_dir / "backend/src"
+    if not backend.is_dir():
+        return findings
+    for f in sorted(backend.rglob("*.js")):
+        rel = f.relative_to(output_dir).as_posix()
+        text = strip_js_comments(f.read_text(encoding="utf-8", errors="replace"))
+        if not (RE_ESM_IMPORT.search(text) or RE_ESM_EXPORT.search(text)):
+            continue
+        findings.append({
+            "kind": "module-system-mismatch", "file": rel,
+            "detail": f"这个文件用了 ESM 语法（import/export），但后端是 **CommonJS** 工程"
+                      "（package.json 没有 type=module，脚手架用 require/module.exports）→ "
+                      "Node 启动时直接 SyntaxError/ExportError，**后端起不来**",
+            "hint": "把本文件改成 CommonJS：`const { run, get } = require('../database');` + "
+                    "`module.exports = { … }`（脚手架导出的是 CommonJS，import 拿不到具名导出）",
+        })
+    return findings
+
+
+def check_syntax_balance(output_dir: Path) -> list[dict]:
+    """括号/引号配平（词法级）——抓"少一个 `)`"这类会让构建或启动**直接失败**的错误。
+
+    为什么它是**闸门上的洞的补丁**（2026-09-21 run e 实测）：闭环把 `app.js` 里的 `});`
+    写成 `}` → `SyntaxError: missing ) after argument list` → 后端起不来 → 冒烟就挂，
+    那 23.4 万 token 的产物在判据侧归零。而 L1 原有 6 项检查（import / 路由 / 可访问名 /
+    建表 / 脚手架 / 脚本）**都不看语法**，模型自检也没抓到。
+
+    假阳性实测（2026-09-21）：官方模板 + 6 份历史产物 ≈108 个文件 → **0 个问题**；
+    run e 那份坏产物 → 精确命中 `backend/src/app.js`（少一个 `)`）。
+    """
+    findings: list[dict] = []
+    for top in ("frontend/src", "backend/src"):
+        base = output_dir / top
+        if not base.is_dir():
+            continue
+        for f in sorted(base.rglob("*")):
+            if not (f.is_file() and f.suffix in (".js", ".jsx", ".ts", ".tsx")):
+                continue
+            probs = scan(f.read_text(encoding="utf-8", errors="replace"))
+            if probs:
+                rel = f.relative_to(output_dir).as_posix()
+                findings.append({
+                    "kind": "syntax-unbalanced", "file": rel,
+                    "detail": f"括号/引号不配平（{probs[0]}；共 {len(probs)} 处）——"
+                              "这类错误会让构建或后端起不来，不是「功能没做对」",
+                    "hint": "与模板对应文件逐段对照，补回缺失的 `)` / `}` / 反引号",
+                })
+    return findings
+
+
 def check_scripts(output_dir: Path) -> list[dict]:
     """平台要求的 npm scripts 必须在（C4/C5）。"""
     findings: list[dict] = []
@@ -214,6 +400,10 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         ("imports", lambda: check_imports(output_dir)),
         ("routes_links", lambda: check_routes_and_links(output_dir, requirement_brief)),
         ("accessible_names", lambda: check_accessible_names(output_dir, required_names)),
+        ("db_tables", lambda: check_db_tables(output_dir)),
+        ("schema_injected", lambda: check_schema_injected(output_dir)),
+        ("module_system", lambda: check_module_system(output_dir)),
+        ("syntax_balance", lambda: check_syntax_balance(output_dir)),
         ("scaffold", lambda: check_scaffold_intact(output_dir, template_dir)),
         ("scripts", lambda: check_scripts(output_dir)),
     ]

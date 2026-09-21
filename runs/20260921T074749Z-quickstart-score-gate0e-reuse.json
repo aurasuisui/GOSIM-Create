@@ -1,0 +1,15 @@
+{
+  "run_id": "20260921T074749Z-quickstart-score-gate0e-reuse",
+  "app": "quickstart",
+  "arm_id": "gate0e-reuse",
+  "port": 3301,
+  "model": "deepseek-v4-flash(reused)",
+  "load_snapshot": "status='🟢 空闲 —— 可以运行 bench 子命令' port3301_listeners=0",
+  "app_dir": "C:/Users/aurasui/AppData/Local/Temp/m3b1-gate0e/app",
+  "tests_total": 0,
+  "tests_passed": 0,
+  "tests_failed": 0,
+  "pass_rate": null,
+  "smoke_failed": true,
+  "note": "冒烟失败（GET / 不是 200）：后端起不来，按纪律**未跑判据**。这不是「功能没做对」，是「应用一起来就崩」——先看 runs/.backend-*.log 的报错。"
+}
