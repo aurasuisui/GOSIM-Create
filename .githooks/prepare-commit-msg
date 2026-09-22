@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# 🔴 提交纪律的机器化闸门 —— 「一个工作轮次 = 一个 commit」（AGENTS.md 的「提交纪律」）
+#
+# 为什么需要它：这条纪律写在 AGENTS.md 里，**但仍然被违反了两次** ——
+#   9/21：一天 49 个 commit（"一次只改一处"的旧规则）；
+#   9/22：同一轮里 docs/12 + STATUS 各提一条，**秒级相邻**，4 个 commit 变成一个轮次。
+# → 本项目的结论是"靠纪律防不住，得靠机器"（同硬规则第 15/17 条）。
+#
+# 判据：最近 WINDOW 分钟内已有 ≥ MAX 个 commit → 拒绝（默认 60 分钟 / 2 条，第 3 个开始拦）。
+#
+# ⚠️ **为什么"amend 也要带放行变量"，而不是自动放行 amend**（这条是**实测**出来的，不是推理）：
+#   第一版想在 hook 里识别 `--amend` 并放行，于是把实参打出来看（git 2.52）：
+#       git commit -m x               → $2="message"  $3=""
+#       git commit --amend -m y       → $2="message"  $3=""       ← 与普通提交**完全同形**
+#       git commit --amend --no-edit  → $2="commit"  $3="HEAD"    ← 只有这一种能认出来
+#   而且 hook 环境里**没有** GIT_REFLOG_ACTION 之类的区分变量（实测只有 GIT_INDEX_FILE / GIT_PREFIX）。
+#   → **一个"只对某种 amend 形式生效"的豁免比没有更糟**（本项目管这叫"又宽又松"）。
+#   所以设计成：**只有一条显式、可追溯的放行方式**，amend 也走它。
+#
+# 逃生口：`ALLOW_FAST_COMMIT=1 git commit ...`
+#   ⚠️ **`git commit --no-verify` 对此无效**：它只跳过 pre-commit 与 commit-msg，
+#      **不跳过 prepare-commit-msg**。这是有意的——避免一条会永久静默生效的旁路。
+#
+# 安装：git config core.hooksPath .githooks   （全新 clone 之后要重跑一次）
+
+set -u
+
+[ -n "${ALLOW_FAST_COMMIT:-}" ] && exit 0
+
+# 还没有任何 commit（初始提交）→ 不拦
+git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
+
+WINDOW_MIN="${COMMIT_WINDOW_MIN:-60}"
+MAX_IN_WINDOW="${COMMIT_MAX_IN_WINDOW:-2}"
+
+count=$(git log --since="$WINDOW_MIN minutes ago" --format=%H 2>/dev/null | grep -c . || true)
+
+if [ "${count:-0}" -ge "$MAX_IN_WINDOW" ]; then
+  # 动态行用 printf（能展开变量）；静态说明用**带引号的** heredoc
+  # ⚠️ heredoc 必须带引号（<<'EOF'）：不加引号时反引号会被 bash 当命令执行，提示文字会被吃掉一半
+  #    （实测踩过：`--amend` 变成 "line 33: --amend: command not found"）
+  printf '\n⛔ 最近 %s 分钟内已经有 %s 个 commit（上限 %s）。\n' \
+    "$WINDOW_MIN" "$count" "$MAX_IN_WINDOW" >&2
+  cat >&2 <<'EOF'
+
+提交纪律（AGENTS.md）：**一个「工作轮次」= 一个 commit** —— 不是一文件一个、不是一小修一个。
+
+  · 这次改动**属于同一轮**（例如刚提交了 docs/，现在提交 STATUS）→ **并进上一条**：
+        ALLOW_FAST_COMMIT=1 git commit --amend --no-edit
+    或想重写 message：
+        git reset --soft HEAD~1   &&   ALLOW_FAST_COMMIT=1 git commit -F <message-file>
+
+  · 确实是**新轮次** / 这一条**需要单独回滚** → 显式放行：
+        ALLOW_FAST_COMMIT=1 git commit ...
+
+  ⚠️ amend 也要带放行变量：**本 hook 认不出 amend**（实测三种形式里只有一种能认出来），
+     所以不做半吊子豁免。`git commit --no-verify` 对本闸门无效（它不跳过 prepare-commit-msg）。
+
+EOF
+  exit 1
+fi
+exit 0
