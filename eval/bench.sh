@@ -13,6 +13,9 @@
 #   ./eval/bench.sh reset   [app]       重置数据库 + 重启后端 ← 每次测量前必须跑
 #   ./eval/bench.sh test    [app] [n]   跑 n 轮（默认 1），每轮前自动 reset 并抽 RunRecord
 #   ./eval/bench.sh status              当前状态（一条结论行 + 端口、进程、runs/ 最新记录）
+#   ./eval/bench.sh verdict             **机器可读**的现场（给脚本/记录用，无 emoji）：
+#                                       status=free|free-leftover:<port>|running|stale|ambiguous runners=N port=free|busy listeners=N
+#   ./eval/bench.sh hold [描述] -- CMD  替别的脚本拿锁，在里面跑 CMD（判分窗口用）
 #   ./eval/bench.sh recover [--force]   崩溃后恢复：停后端 + 清 runner + 删锁
 #                                       （先在 status 里确认没人跑；不带 --force 只做预检）
 # ============================================================
@@ -223,6 +226,16 @@ lock_verdict() {
   fi
 }
 
+# 祖先判定：**不能用进程树**——这条是实测出来的（第二十一轮审核 D 的"陷阱"要落地时才发现）。
+#
+# 第一版实现走 WMI 父链（`Get-CimInstance Win32_Process` 的 ParentProcessId 逐级上溯），
+# 三层嵌套（hold → 子脚本 → 孙脚本）下**认不出祖父**：子进程的 parent 指向一个
+# **WMI 里查不到名字**的 PID，链在第二跳就断了（实测：`chain: 12052 (bash.exe) -> parent 26304 ()`）。
+# Git Bash 会 fork/exec 出 WMI 看不见的中间进程，所以"按祖先链判"在这里不可靠。
+# → 改成**环境令牌**：拿锁时写 `$LOCK_DIR/token` 并 `export BENCH_LOCK_TOKEN`，
+#   同一轮里的后代天然带着它（环境变量跨进程可靠传播），别人的会话没有。
+#   这就是"我是这一轮的一部分"的判据；它只在**继承**这一处生效，其余判据一条没放松。
+
 acquire_lock() {
   local me; me="$(self_pid)"
   if [ -d "$LOCK_DIR" ]; then
@@ -230,6 +243,14 @@ acquire_lock() {
     # 自己已经持有 → 幂等返回（cmd_test 调用 cmd_reset 会走到这里）
     if [ "$owner" = "$me" ]; then
       heartbeat_fresh || start_heartbeat
+      return 0
+    fi
+    # 调用方（本轮的上层脚本）已经持有 → **继承**：不重复拿、也不释放。
+    # 只认"令牌与本轮锁一致"这一种情形，不放松其它任何一条判据。
+    if [ -n "${BENCH_LOCK_TOKEN:-}" ] && [ -f "$LOCK_DIR/token" ] \
+       && [ "$(cat "$LOCK_DIR/token" 2>/dev/null || true)" = "$BENCH_LOCK_TOKEN" ]; then
+      INHERITED_LOCK=1
+      log "  锁由本轮的调用方持有（令牌匹配）→ 继承：不重复拿、退出时不释放"
       return 0
     fi
 
@@ -263,11 +284,22 @@ acquire_lock() {
   fi
   mkdir -p "$LOCK_DIR"
   echo "$me" > "$LOCK_DIR/pid"
+  # 本轮令牌：写进锁目录 + `export` 给子进程 —— 后代靠它认出"我在这一轮里"（见上面的说明）
+  printf '%s' "$me-$$-$RANDOM" > "$LOCK_DIR/token"
+  export BENCH_LOCK_TOKEN="$(cat "$LOCK_DIR/token")"
   start_heartbeat
   return 0
 }
 
-release_lock() { stop_heartbeat; set_inflight ""; rm -rf "$LOCK_DIR"; }
+release_lock() {
+  stop_heartbeat
+  # 继承来的锁**不能**由我释放（那会把祖先进程的保护窗口提前关掉）
+  if [ "${INHERITED_LOCK:-0}" = "1" ]; then
+    log "  锁是继承来的 → 不释放（留给持有者）"
+    return 0
+  fi
+  set_inflight ""; rm -rf "$LOCK_DIR"
+}
 
 # ---------- 「认领」自动化（第 5 条）----------
 # 靠会话自觉写「在飞工作」栏失败过一次：那一栏写着"无"，而当时有一轮测量正在跑。
@@ -451,6 +483,41 @@ cmd_stop() {
   stop_backend
 }
 
+# `hold`：**替别的脚本拿锁**，在里面跑一条命令。
+# 为什么需要它（第二十一轮审核 D）：`score_app.sh` 的判分窗口此前**完全在锁之外**——
+# 今天十几轮 keep 判分只靠"端口 + runner"启发式和 `STATUS.md` 在飞栏承担，
+# 锁一次都没生效。而 `score_app.sh` 自己拿锁会踩一个坑：
+# 若调用方（如 `gate0_run.sh`）已经持锁，**子进程 PID ≠ 锁持有者** → `acquire_lock` 会
+# 把同一轮当成"别人在跑"而拒绝，**把整个判分链弄坏**。
+# → 所以锁由 `bench.sh`（这个持锁进程）来拿，子脚本用 `SCORE_LOCK_HELD=1` 表示"已有锁"；
+#   而"调用方已持锁"那一半由 `acquire_lock` 的**令牌继承**分支兜住（幂等，不再单独拿）。
+cmd_hold() {                       # hold [描述] -- <命令...>
+  local desc=""
+  if [ "${1:-}" = "--" ]; then
+    shift
+  else
+    [ $# -gt 0 ] || die "用法：bench.sh hold [描述] -- <命令...>"
+    desc="$1"; shift
+    [ "${1:-}" = "--" ] && shift
+  fi
+  [ $# -gt 0 ] || die "用法：bench.sh hold [描述] -- <命令...>"
+
+  acquire_lock || die "拒绝并发运行"
+  trap 'release_lock' EXIT INT TERM
+  # 认领只在"这一轮归我"时写：继承来的锁说明祖先已经认领过，
+  # 覆盖它会让「在飞工作」栏在子进程先退出时留下一行指向已结束的进程。
+  if [ "${BENCH_CLAIMED:-0}" != "1" ] && [ "${INHERITED_LOCK:-0}" != "1" ]; then
+    set_inflight "${desc:-hold（PID $(self_pid)）}"
+  fi
+
+  log "已持锁（PID $(self_pid)）：${desc:-（无描述）}"
+  log "  → 这一段的窗口在锁保护内；子命令退出后自动释放"
+  local rc=0
+  "$@" || rc=$?
+  log "子命令退出码 $rc —— 释放锁"
+  exit "$rc"
+}
+
 cmd_reset() {
   local app="${1:-$REF_APP}"
   local dir="$BENCH_DIR/arc-bench/webapp/$app/project/backend"
@@ -548,6 +615,22 @@ cmd_test() {
   log "完成后清场：./eval/bench.sh stop"
 }
 
+# 机器可读的现场（**给脚本用，给记录用**）。
+# 为什么需要：`status` 是**给人看的**，而记录里的 `load_snapshot` 要能**机器校验**——
+# 实测过两种踩坑：① 按关键词抓结论行会先命中后面的「=== 锁 === 空闲」；
+# ② 按 emoji 锚定在脚本里（locale 不同）**匹配不到**。
+# → 输出固定三/四个字段，**不翻译、不带 emoji**：
+#     status=free|free-leftover:<port>|running|stale|ambiguous  runners=<n>  port=<free|busy>  listeners=<n>
+cmd_verdict() {
+  local v n pids l
+  v="$(lock_verdict)"
+  n="$(runner_count)"
+  pids="$(port_pids)"
+  l="$(printf '%s\n' "$pids" | grep -c . || true)"
+  printf 'status=%s runners=%s port=%s listeners=%s\n' \
+    "${v%%:*}" "$n" "$([ -n "$pids" ] && echo busy || echo free)" "${l:-0}"
+}
+
 cmd_status() {
   # 先给**一条结论行**。原先把三条线索摆出来让人自己拼，还建议"跑 reset 清理"——
   # 而在有测量正在跑时，reset 是唯一不能做的事（实测踩过一次）。
@@ -578,9 +661,18 @@ cmd_status() {
     *)
       echo "🟡 不确定，先人工确认 —— 在确认之前**不要**跑 reset / stop"
       echo "   证据：${verdict#ambiguous:}"
-      echo "   ⚠️ bench.sh 的常规子命令此刻都会被拒（锁 + 端口同时成立时的已知死锁）。"
+      # 真实条件（2026-09-22 改；旧文写死"都会被拒"，而它只在**有锁**那一支成立）。
+      # 判据就在 acquire_lock 里：`if [ -d "$LOCK_DIR" ]` —— 锁为空时它**直接放行**。
+      if [ -d "$LOCK_DIR" ]; then
+        echo "   ⚠️ 锁存在但无生命迹象：此刻常规子命令会被 acquire_lock **拒绝**（年龄/端口/runner 任一条成立）。"
+        echo "      先按证据确认；确属崩溃残留再走 recover。"
+      else
+        echo "   ⚠️ **锁为空** → acquire_lock 直接放行，reset / stop / test **会真的执行**，"
+        echo "      而它们会接管端口、重置数据库（runner 不占端口、不会被杀）——"
+        echo "      这正是「别跑」的理由：不是被挡，是**会生效**。等 runner 自己退干净。"
+      fi
       echo "   若你确认是崩溃残留（会话被强杀）：先 ./eval/bench.sh recover 预检，通过后加 --force 执行。"
-      ;;
+      ;; 
   esac
   echo "=============================================================="
 
@@ -632,7 +724,9 @@ case "${1:-}" in
   stop)    cmd_stop ;;
   reset)   shift; cmd_reset "$@" ;;
   test)    shift; cmd_test "$@" ;;
+  hold)    shift; cmd_hold "$@" ;;
   status)  cmd_status ;;
+  verdict) cmd_verdict ;;
   recover) shift; cmd_recover "$@" ;;
   *)       sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

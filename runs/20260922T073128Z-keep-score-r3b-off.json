@@ -1,19 +1,19 @@
 {
-  "run_id": "20260921T093005Z-keep-score-m2keep-official.judges",
-  "arm_id": "m2keep-official",
+  "run_id": "20260922T073128Z-keep-score-r3b-off.judges",
+  "arm_id": "r3b-off",
   "round": 1,
   "change_description": null,
-  "captured_at": "2026-09-21T10:01:47Z",
+  "captured_at": "2026-09-22T08:03:34Z",
   "app": "keep",
   "port": 3301,
-  "arc_test_date": null,
+  "arc_test_date": "2026-09-20",
   "model": "unknown",
   "visual_model": null,
   "ci_env": null,
   "retries_effective": 0,
-  "load_snapshot": "status='🟢 空闲 —— 可以运行 bench 子命令' port3301_listeners=0",
+  "load_snapshot": "status='空闲' port3301_listeners=2",
   "pipeline": {
-    "git_commit": "d876da613333f8543ac9e40263ac86f9a2feda15",
+    "git_commit": "6d85f631a526280dea54db5ceaea824eff8d546e",
     "git_dirty": true,
     "git_branch": "main"
   },
@@ -23,19 +23,27 @@
     "git_branch": "main"
   },
   "requirements_sha256": "20fd6a60bd906dfb409deff5d4a3c2da498de5aa263745279349f49458134f76",
-  "log_path": "runs/20260921T093005Z-keep-score-m2keep-official.judges.log",
+  "log_path": "runs/20260922T073128Z-keep-score-r3b-off.judges.log",
   "tests_total": 32,
-  "tests_passed": 1,
-  "tests_failed": 31,
+  "tests_passed": 0,
+  "tests_failed": 32,
   "tests_skipped": 0,
   "tests_flaky": 0,
-  "pass_rate": 0.0312,
+  "pass_rate": 0.0,
   "per_test_failed": [
     {
       "test_id": "REQ-1.1.spec.ts:7",
       "req_id": "REQ-1.1.",
       "spec_file": "REQ-1.1.spec.ts",
       "title": "REQ-1.1: Enter Website ──────────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "req_id": "REQ-2.1.",
+      "spec_file": "REQ-2.1.spec.ts",
+      "title": "REQ-2.1: Note Listing ───────────",
       "ok": false,
       "failure_class": "timeout"
     },
@@ -280,16 +288,11 @@
       "failure_class": "timeout"
     }
   ],
+  "per_test_passed": [],
   "failure_class_counts": {
-    "timeout": 31
+    "timeout": 32
   },
   "retries_observed": 0,
   "has_summary": true,
-  "per_test_passed": [
-    {
-      "test_id": "REQ-2.1.spec.ts:7",
-      "title": "REQ-2.1: Note Listing (339ms)"
-    }
-  ],
   "log_total_running": 32
 }

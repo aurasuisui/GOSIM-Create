@@ -205,3 +205,46 @@ def interaction_units(tree, a11y) -> tuple[int, int]:
             if has_target:
                 with_target += 1
     return units, with_target
+
+
+# ---------------------------------------------------------------- 种子数据字面量（PLAN §7 的 3b）
+
+# 需求里就是字面引号串，且**整份需求只此一处**能告诉我们"页面必须显示这些内容"：
+#   Seed data: pinned note "Sprint goals" and regular note "Groceries".
+# keep 实测 5 条。而 L1 原先**完全没有这条** —— 所以那轮"种子数据整块丢"零成本就能拦。
+RE_SEED_HINT = re.compile(r"seed data|种子数据|fixtures?", re.I)
+RE_QUOTED_ANY = re.compile(r"[“\"]([^”\"]{2,60})[”\"]")
+
+# **搜索关键词不是数据**（第二十一轮审核 §五.I）：
+#   `Seed data: note "Study schedule" whose title or content contains the keyword "st".`
+# 抽出来的 `st` 在任何产物里都能命中（`"st"` 作为子串无处不在）→
+# **它那条判据永远不可能失败**，是"判据没报错 ≠ 判据跑过了"的第 N 次同型。
+# 所以带 `keyword "X"` / `search term "X"` 的那一段**先剪掉**再取字面量。
+RE_KEYWORD_CLAUSE = re.compile(
+    r"(?:the\s+)?(?:keyword|search(?:ing)?\s+(?:term|query)|query\s+term|关键词)\s*[“\"][^”\"]*[”\"]",
+    re.I)
+# 最小长度/词形兜底（防止别的句式漏网）：2 字符的串在任何产物里都会命中，
+# 且必须至少含一个字母/数字/汉字（纯标点不是数据）。
+MIN_SEED_LEN = 3
+
+
+def _is_data_literal(s: str) -> bool:
+    return len(s) >= MIN_SEED_LEN and bool(re.search(r"[A-Za-z0-9\u4e00-\u9fff]", s))
+
+
+def extract_seed_literals(text: str) -> list[str]:
+    """从需求文本里抽"必须出现在产物里"的**数据字面量**（`Seed data: ... "X" ...`）。
+
+    只认**种子/夹具句**里的引号串（位置约束，与散文规则同一个思路）——
+    否则会把普通引号名也当成数据（那些走 a11y 靶子）。
+    """
+    out: list[str] = []
+    for part in re.split(r"(?<=[.!?])\s+|\n", text or ""):
+        if not RE_SEED_HINT.search(part):
+            continue
+        part = RE_KEYWORD_CLAUSE.sub(" ", part)      # 搜索关键词先剪掉
+        for got in RE_QUOTED_ANY.findall(part):
+            s = got.strip()
+            if _is_data_literal(s) and s not in out:
+                out.append(s)
+    return out

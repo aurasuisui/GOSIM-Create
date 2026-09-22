@@ -284,5 +284,12 @@
     "timeout": 31
   },
   "retries_observed": 0,
-  "has_summary": true
+  "has_summary": true,
+  "per_test_passed": [
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "title": "REQ-2.1: Note Listing (478ms)"
+    }
+  ],
+  "log_total_running": 32
 }

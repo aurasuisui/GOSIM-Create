@@ -270,8 +270,16 @@ def repair(output_dir, violations: list[dict], cfg: LLMConfig, *, log=print,
         if f.is_file() and f.suffix in (".ts", ".tsx", ".js")
     ) if (output_dir / "frontend/src").is_dir() else []
 
+    # 按优先级排序再截断（PLAN §7 的 3a）：priority 0 = 命中契约（回归项），**永不截**
+    ranked = sorted(by_file.items(), key=lambda kv: min(v.get("priority", 1) for v in kv[1]))
+    keep = [kv for kv in ranked if min(v.get("priority", 1) for v in kv[1]) == 0]
+    rest = [kv for kv in ranked if kv not in keep][:max(0, max_files - len(keep))]
+    selected = keep + rest
+    if len(keep) > max_files:
+        log(f"  （契约/回归项 {len(keep)} 个文件**突破 max_files={max_files}**：回归项不许被截）")
+
     written: list[str] = []
-    for rel, vs in list(by_file.items())[:max_files]:
+    for rel, vs in selected:
         target = output_dir / rel
         exists = target.is_file()
         if not exists and rel not in CREATABLE_IF_ABSENT:

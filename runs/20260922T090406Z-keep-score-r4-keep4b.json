@@ -1,19 +1,19 @@
 {
-  "run_id": "20260921T093005Z-keep-score-m2keep-official.judges",
-  "arm_id": "m2keep-official",
+  "run_id": "20260922T090406Z-keep-score-r4-keep4b.judges",
+  "arm_id": "r4-keep4b",
   "round": 1,
   "change_description": null,
-  "captured_at": "2026-09-21T10:01:47Z",
+  "captured_at": "2026-09-22T09:33:57Z",
   "app": "keep",
   "port": 3301,
-  "arc_test_date": null,
+  "arc_test_date": "2026-09-20",
   "model": "unknown",
   "visual_model": null,
   "ci_env": null,
   "retries_effective": 0,
-  "load_snapshot": "status='🟢 空闲 —— 可以运行 bench 子命令' port3301_listeners=0",
+  "load_snapshot": "status='🟢 正在跑，不要动 —— 禁止一切 bench 子命令（含 reset / stop）' port3301_listeners=0",
   "pipeline": {
-    "git_commit": "d876da613333f8543ac9e40263ac86f9a2feda15",
+    "git_commit": "b3c497e12493079d93104ff9887a6ddd547c559c",
     "git_dirty": true,
     "git_branch": "main"
   },
@@ -23,13 +23,13 @@
     "git_branch": "main"
   },
   "requirements_sha256": "20fd6a60bd906dfb409deff5d4a3c2da498de5aa263745279349f49458134f76",
-  "log_path": "runs/20260921T093005Z-keep-score-m2keep-official.judges.log",
+  "log_path": "runs/20260922T090406Z-keep-score-r4-keep4b.judges.log",
   "tests_total": 32,
-  "tests_passed": 1,
-  "tests_failed": 31,
+  "tests_passed": 2,
+  "tests_failed": 30,
   "tests_skipped": 0,
   "tests_flaky": 0,
-  "pass_rate": 0.0312,
+  "pass_rate": 0.0625,
   "per_test_failed": [
     {
       "test_id": "REQ-1.1.spec.ts:7",
@@ -140,14 +140,6 @@
       "req_id": "REQ-2.7.2.",
       "spec_file": "REQ-2.7.2.spec.ts",
       "title": "REQ-2.7.2: Remove label from a note",
-      "ok": false,
-      "failure_class": "timeout"
-    },
-    {
-      "test_id": "REQ-2.7.3.spec.ts:7",
-      "req_id": "REQ-2.7.3.",
-      "spec_file": "REQ-2.7.3.spec.ts",
-      "title": "REQ-2.7.3: Default label ──────",
       "ok": false,
       "failure_class": "timeout"
     },
@@ -280,16 +272,20 @@
       "failure_class": "timeout"
     }
   ],
-  "failure_class_counts": {
-    "timeout": 31
-  },
-  "retries_observed": 0,
-  "has_summary": true,
   "per_test_passed": [
     {
       "test_id": "REQ-2.1.spec.ts:7",
-      "title": "REQ-2.1: Note Listing (339ms)"
+      "title": "REQ-2.1: Note Listing (812ms)"
+    },
+    {
+      "test_id": "REQ-2.7.3.spec.ts:7",
+      "title": "REQ-2.7.3: Default label (736ms)"
     }
   ],
-  "log_total_running": 32
+  "log_total_running": 32,
+  "failure_class_counts": {
+    "timeout": 30
+  },
+  "retries_observed": 0,
+  "has_summary": true
 }

@@ -37,6 +37,33 @@ die()  { err "$*"; exit 1; }
 [ -d "$APP_DIR/frontend" ] && [ -d "$APP_DIR/backend" ] || die "不是应用目录（缺 frontend/ 或 backend/）：$APP_DIR"
 [ -n "$APP" ] || die "要指定应用名（如 keep / prestashop / stackoverflow）"
 
+# ---------- 0. 拿锁（**这一段以前完全在锁之外**）----------
+# 第二十一轮审核 D：`bench.sh test` 才是"全局独占资源"，而实际天天在跑的判分路径是本脚本，
+# 它全程不拿锁 → 今天十几轮 keep 判分的并发保护**只**由"端口 + runner"启发式和
+# `STATUS.md` 在飞栏承担，锁一次都没生效。那次作废两轮的事故正是"两轮判分互相重置数据库"。
+#
+# ⚠️ 陷阱（必须先说清，否则这个"修复"会把链接弄坏）：
+#   若由**调用方**持锁（例如 `gate0_run.sh`），子进程 PID ≠ 锁持有者 →
+#   `acquire_lock` 会把同一轮当成"别人在跑"而拒绝。**实测过：`bench.sh test` 不调本脚本**
+#   （`grep -n score eval/bench.sh` 无命中），所以那条入口不存在这个问题；
+#   而 `gate0_run.sh` 目前也不持锁。
+# → 所以做成"**自己起一个持锁的父进程**"：`bench.sh hold` 拿锁 + 心跳 + 退出时释放，
+#   再在里面跑本脚本（`SCORE_LOCK_HELD=1` 表示"已经有锁"）。
+#   `acquire_lock` 另有"调用方持锁 → 继承"（环境令牌）分支兜住将来有人给调用方加锁的情形。
+#
+# 🔴 **静置快照必须在拿锁之前采**（2026-09-22 实跑发现）：拿锁之后 `status` 只会报
+#    "🟢 正在跑"——那是**我自己**，不是外部世界。第一次带锁的判分（`r4-keep4b`）的记录里
+#    `load_snapshot` 就是这个形态（误导），而 `docs/04` §一要求快照能判"静置"。
+#    所以：**外层（未持锁）先采快照 → 用环境变量带进去**；内层只用它，并标出"拿锁前采的"。
+if [ "${SCORE_LOCK_HELD:-0}" != "1" ]; then
+  # 机器可读现场（`bench.sh verdict`，无 emoji 无翻译）——**拿锁之前**采
+  _snap_verdict="$("$ROOT/eval/bench.sh" verdict 2>/dev/null | tr -d '\r')"
+  exec env SCORE_LOCK_HELD=1 \
+    SCORE_LOAD_SNAPSHOT="${_snap_verdict:-status=unknown}" \
+    "$ROOT/eval/bench.sh" hold \
+    "score $APP arm=$ARM（判分窗口，PID 由 bench.sh 持有）" -- "$ROOT/eval/score_app.sh" "$@"
+fi
+
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="$ROOT/runs/${STAMP}-${APP}-score-${ARM}.log"
 JUDGE_LOG="$ROOT/runs/${STAMP}-${APP}-score-${ARM}.judges.log"
@@ -45,18 +72,28 @@ exec > >(tee "$OUT") 2>&1
 log "打分对象：$APP_DIR"
 log "应用：$APP   回合：$ARM   输出：$OUT"
 log "ARC_TEST_DATE=$ARC_TEST_DATE（测试是日期相关的，必须固定）"
+log "0/5 锁：判分窗口在锁保护内（由 bench.sh hold 持有，PID=$(cat "$ROOT/runs/.bench.lock/pid" 2>/dev/null || echo '?')）"
 
-# ---------- 0. 静置快照（跑前必记）----------
+# ---------- 0. 静置快照（**拿锁之前**采的那个）----------
 # 为什么：`docs/04` §一要求「只在静置条件下比较」，而本脚本的结果要进 runs/ 记录体系。
 # 没有跑前快照就没法按静置条件筛轮次（`load_snapshot` 必须是 free / free-leftover 且 runners=0）。
-SNAP_VERDICT="$("$ROOT/eval/bench.sh" status 2>/dev/null | grep -E '空闲|正在跑|过期|疑似' | head -1 | tr -d '\r')"
-SNAP_PORT_L="$(netstat -ano 2>/dev/null | grep ":$PORT " | grep -ci listen || true)"
-SNAP_PORT_L="${SNAP_PORT_L:-0}"      # grep -c 无匹配时会打印 0 并返回 1，别再 `|| echo 0` 叠一个
-LOAD_SNAPSHOT="status='${SNAP_VERDICT:-未知}' port${PORT}_listeners=${SNAP_PORT_L}"
-log "0/5 跑前快照：$LOAD_SNAPSHOT"
-case "$SNAP_VERDICT" in
-  *空闲*) : ;;
-  *) warn "    结论行不是「空闲」—— 这一轮**不能**和别的轮次直接比较（见 docs/04 §一）" ;;
+# ⚠️ 两层修正（2026-09-22 实跑各踩一次）：
+#   ① 快照必须在**拿锁之前**采——拿锁后 `status` 只会报"正在跑"，那是**我自己**不是外部世界；
+#   ② 用 `bench.sh verdict` 的**机器可读**形式（`status=free runners=0 port=free listeners=0`）：
+#      按关键词抓结论行会先命中后面的「=== 锁 === 空闲」，按 emoji 锚定在脚本里（locale 不同）
+#      **匹配不到**。字段口径见审核 §四.F（"别比 status 字面量"）。
+SNAP_NOW="$("$ROOT/eval/bench.sh" verdict 2>/dev/null | tr -d '\r')"
+LOAD_SNAPSHOT="${SCORE_LOAD_SNAPSHOT:-$SNAP_NOW}"
+if [ -n "${SCORE_LOAD_SNAPSHOT:-}" ]; then
+  log "0/5 跑前快照（**拿锁之前**采）：$LOAD_SNAPSHOT"
+  log "    拿锁后自查（仅供参考，别当成外部世界）：$SNAP_NOW"
+else
+  log "0/5 跑前快照：$LOAD_SNAPSHOT（⚠️ 没有外层快照 → 这一份是**持锁时**采的，只反映自己）"
+fi
+case "$LOAD_SNAPSHOT" in
+  *status=free*) : ;;
+  *) warn "    快照的 status 不是 free（残留后端时会是 free-leftover）—— 这一轮**不能**" \
+          "和别的轮次直接比较，除非按 docs/04 §一 的口径标注" ;;
 esac
 
 # ---------- 0b. 清掉上一轮的数据库 ----------

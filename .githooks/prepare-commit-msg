@@ -25,10 +25,57 @@
 
 set -u
 
-[ -n "${ALLOW_FAST_COMMIT:-}" ] && exit 0
+# ⚠️ 这里**不能**写 `[ -n "$ALLOW_FAST_COMMIT" ] && exit 0` ——那个早退会让下面的留痕检查
+#    变成死代码（实测踩过：测试"放行但无标记"时提交照样通过）。
 
 # 还没有任何 commit（初始提交）→ 不拦
 git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
+
+MSG_FILE="${1:-}"
+
+# 🔴 放行必须**留痕**，而且**留的是带原因的固定词表**（2026-09-22 加，同日收紧一次）
+#    背景：第一版只要求"有一行 `轮次: 独立`"，结果它退化成常规路径 ——
+#    实测 35 个 commit 里 10 个带标记、最近 9 个里 6 个，其中三条（15:50/15:51/15:52）
+#    属**同一个工作轮次**（本该 `--amend`），还有一条的标记原文自认"承上一条同一轮"。
+#    "同一轮"不在放行清单里（清单只有两条）→ **词表化**，让放行无法含糊、也让 grep 能分开审计。
+#
+# 规则：用 `ALLOW_FAST_COMMIT=1` 放行时，message 必须含**下面两个之一**（裸的 `轮次: 独立` 不再接受）：
+#        轮次: 独立-新轮次          # 确实是新的一轮（同一小时内第 3 次起）
+#        轮次: 独立-可单独回滚      # 这一条需要能单独 revert（AGENTS.md 允许的另一种例外）
+#      同一轮的第二处改动**不在此清单**——正确动作是 `git commit --amend`。
+# 事后审计（两类可分开）：
+#      git log --grep="轮次: 独立-新轮次"
+#      git log --grep="轮次: 独立-可单独回滚"
+MARKER_NEW="轮次: 独立-新轮次"
+MARKER_REV="轮次: 独立-可单独回滚"
+if [ -n "${ALLOW_FAST_COMMIT:-}" ]; then
+  # ⚠️ 必须用 `-qxF`（整行等于标记），不能用 `-qF`（子串）——
+  #    子串匹配会把"正文里**提及**这个词表值"也算成放行（实测踩过：
+  #    说明词表本身的那条 commit，正文里引用了两个值，于是在两个审计里各出现一次）。
+  #    同型的松紧问题本项目已经吃过：**判据要能区分"使用"与"提及"。**
+  if [ -z "$MSG_FILE" ] \
+     || { ! grep -qxF "$MARKER_NEW" "$MSG_FILE" 2>/dev/null \
+          && ! grep -qxF "$MARKER_REV" "$MSG_FILE" 2>/dev/null; }; then
+    printf '\n⛔ 用了 `ALLOW_FAST_COMMIT=1` 放行，但 message 里没有**词表里的**标记行。\n' >&2
+    cat >&2 <<'EOF'
+
+放行必须写清**原因**——放行信息只活在环境变量里、在 git 历史里查不到，
+所以原因必须落在 message 里，且**只能二选一**：
+
+    轮次: 独立-新轮次          ← 确实是新的一轮
+    轮次: 独立-可单独回滚      ← 这一条需要能单独 revert
+
+⚠️ **"同一轮的第二处改动"不在清单里** —— 那种情况该做的是：
+
+    ALLOW_FAST_COMMIT=1 git commit --amend --no-edit
+
+（裸的 `轮次: 独立` 已不接受：实测它会让放行退化成"必须多打一行字"，信息量≈0。）
+
+EOF
+    exit 1
+  fi
+  exit 0
+fi
 
 WINDOW_MIN="${COMMIT_WINDOW_MIN:-60}"
 MAX_IN_WINDOW="${COMMIT_MAX_IN_WINDOW:-2}"
@@ -50,8 +97,11 @@ if [ "${count:-0}" -ge "$MAX_IN_WINDOW" ]; then
     或想重写 message：
         git reset --soft HEAD~1   &&   ALLOW_FAST_COMMIT=1 git commit -F <message-file>
 
-  · 确实是**新轮次** / 这一条**需要单独回滚** → 显式放行：
+  · 确实是**新轮次** / 这一条**需要单独回滚** → 显式放行（**message 里必须写清原因**）：
         ALLOW_FAST_COMMIT=1 git commit ...
+    并在 message 里加**词表里的**标记行（二选一）：
+        轮次: 独立-新轮次        /        轮次: 独立-可单独回滚
+    ⚠️ "同一轮的第二处改动"不在此列 —— 那种情况用上面的 `--amend`，并同样带放行变量。
 
   ⚠️ amend 也要带放行变量：**本 hook 认不出 amend**（实测三种形式里只有一种能认出来），
      所以不做半吊子豁免。`git commit --no-verify` 对本闸门无效（它不跳过 prepare-commit-msg）。

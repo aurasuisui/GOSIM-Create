@@ -478,6 +478,43 @@ def check_express5_routes(output_dir: Path) -> list[dict]:
     return findings
 
 
+def check_seed_literals(output_dir: Path, seeds) -> list[dict]:
+    """需求声明的**种子数据字面量**必须出现在产物里。
+
+    为什么零成本就能拦（PLAN §7 的 3b）：需求里就是字面引号串——
+    `Seed data: pinned note "Sprint goals" and regular note "Groceries".`——
+    而实测那次失败（种子数据**整块丢**、`REQ-2.1` 挂）**零成本就能拦**。
+    L1 原先完全没有这条。
+
+    🔴 **已升为判死**（2026-09-22 方案会话拍板，`PLAN.md` §7 M3b-1 的 3b）：
+    kind 是 `seed-literal-missing`（**不再**以 `-soft-missing` 结尾）→ 进 hard findings，
+    **驱动修复**，且经 3a 的 `priority 0`（契约集）**不许被 `max_files` 截掉**。
+    两条前置都已满足：① 抽取器滤掉"搜索关键词"与 <3 字符的串
+    （`contains the keyword "st"` → `'st'` 那种**永不失败**的垃圾字面量）；
+    ② 已进 `eval/regress_l1.sh` 的语料表（`m2-keep2 0 / e2-keep2 0 / e1b-keep4 2 / r3b-off 2`）。
+
+    **作用域**：只对**本子集**声明的种子判死（调用方按 `req_ids` 限定）——
+    不分子集时**又宽又松**（`m2-keep2` 会被报缺 20 条，而那 20 条**全部**属于子集外的需求）。
+    """
+    findings: list[dict] = []
+    blob_parts = []
+    for top in ("frontend/src", "backend/src"):
+        base = output_dir / top
+        if base.is_dir():
+            blob_parts += [f.read_text(encoding="utf-8", errors="replace")
+                           for f in base.rglob("*") if f.is_file()]
+    low = "\n".join(blob_parts).lower()
+    for s in seeds or []:
+        if s and s.lower() not in low:
+            findings.append({
+                "kind": "seed-literal-missing", "file": "frontend/src",
+                "detail": f"需求声明的种子数据 {s!r} 在产物里一次都没出现"
+                          "（契约项：**驱动修复，且不许被 max_files 截掉**）",
+                "hint": "在启动播种或前端初始数据里给出这条字面量（页面必须能显示它）",
+            })
+    return findings
+
+
 def check_scripts(output_dir: Path) -> list[dict]:
     """平台要求的 npm scripts 必须在（C4/C5）。"""
     findings: list[dict] = []
@@ -500,7 +537,8 @@ def check_scripts(output_dir: Path) -> list[dict]:
 
 
 def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str],
-           template_dir: Path, soft_names: list[str] | None = None, log=print) -> dict:
+           template_dir: Path, soft_names: list[str] | None = None,
+           seed_literals: list[str] | None = None, log=print) -> dict:
     """跑完整 L1，返回 {passed, findings}。findings 可**直接**喂给定向修复。"""
     findings: list[dict] = []
     checks = [
@@ -508,6 +546,7 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         ("routes_links", lambda: check_routes_and_links(output_dir, requirement_brief)),
         ("accessible_names", lambda: check_accessible_names(output_dir, required_names)),
         ("prose_names", lambda: check_prose_names(output_dir, soft_names or [])),
+        ("seed_literals", lambda: check_seed_literals(output_dir, seed_literals or [])),
         ("db_tables", lambda: check_db_tables(output_dir)),
         ("schema_injected", lambda: check_schema_injected(output_dir)),
         ("module_system", lambda: check_module_system(output_dir)),

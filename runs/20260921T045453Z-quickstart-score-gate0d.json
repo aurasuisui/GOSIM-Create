@@ -30,8 +30,37 @@
   "tests_skipped": 0,
   "tests_flaky": 0,
   "pass_rate": 0.8333,
-  "per_test_failed": [],
+  "per_test_failed": [
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:48",
+      "title": "REQ-1: successfully register a new account and remain signed in (1.5m)",
+      "failure_class": "unknown"
+    }
+  ],
   "failure_class_counts": {},
   "retries_observed": 0,
-  "has_summary": true
+  "has_summary": true,
+  "per_test_passed": [
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:72",
+      "title": "REQ-1: reject a duplicate username without creating a signed-in session (1.0s)"
+    },
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:84",
+      "title": "REQ-1: reject duplicate email with a different username (975ms)"
+    },
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:96",
+      "title": "REQ-1: reject mismatched passwords without creating a signed-in session (515ms)"
+    },
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:104",
+      "title": "REQ-1: reject missing required registration values before creating a session (848ms)"
+    },
+    {
+      "test_id": "REQ-1-user-registration.spec.ts:120",
+      "title": "REQ-1: reject malformed username, email, or password without signing in (1.1s)"
+    }
+  ],
+  "log_total_running": 6
 }

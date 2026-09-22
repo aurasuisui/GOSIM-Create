@@ -164,6 +164,25 @@ def log_model_env(output_dir: Path) -> None:
     print(f"  VISUAL_MODEL : {_os.environ.get('VISUAL_MODEL') or 'absent'}（本管线暂不用视觉）")
     print(f"  ARCBENCH_OUTPUT_DIR : {_os.environ.get('ARCBENCH_OUTPUT_DIR') or 'absent'}")
     print(f"  ARCBENCH_RUNNER_EVENTS_PATH : {_os.environ.get('ARCBENCH_RUNNER_EVENTS_PATH') or 'absent'}")
+
+    # ---- 本轮knobs：**回显每一开关的实际取值**（第二十一轮审核 §一.11）----
+    # 为什么必须回显：此前只能靠"日志里有没有『验证闭环』那行"反推闭环开关——
+    # **absence 会被读成"没开"**，而它也可能是"这行没打印"或"日志被截了"。
+    # 这是本项目的"判据没报错 ≠ 判据跑过了"的同型 （实测过一次：三次跑里判据①静默失败而都"看起来正常"）。
+    req_ids_env = (_os.environ.get("PIPELINE_REQ_IDS") or "").strip()
+    verify_env = (_os.environ.get("PIPELINE_VERIFY") or "").strip()
+    rounds_env = (_os.environ.get("PIPELINE_REPAIR_ROUNDS") or "").strip()
+    print("=== 本轮 knobs（回显实际取值，别再从日志的 absence 反推）===")
+    print(f"  PIPELINE_REQ_IDS      : {req_ids_env or 'absent'}（缩子集；absent = 全量）")
+    print(f"  PIPELINE_VERIFY       : {verify_env or 'absent'}（absent 视为开；=0 关闭闭环）")
+    print(f"  PIPELINE_REPAIR_ROUNDS: {rounds_env or 'absent'}（absent = 默认 3 → 实际只有 rounds-1 次修复）")
+    print(f"  PIPELINE_DESIGN_ONLY  : {(_os.environ.get('PIPELINE_DESIGN_ONLY') or '').strip() or 'absent'}"
+          "（=1 只跑设计、不生成，省 token）")
+    # 预算档位**从代码里读**，不写死在文案里（写死就会与代码漂移 = "工具与文档不一致"）
+    from generate.implement import APP_TOKEN_BUDGET, TOKEN_BUDGET_DEFAULT
+    budget_env = (_os.environ.get("PIPELINE_TOKEN_BUDGET") or "").strip()
+    print(f"  token 预算            : {budget_env or '（未设 → 按 app 档位）'}"
+          f"   内置档位={APP_TOKEN_BUDGET}（默认 {TOKEN_BUDGET_DEFAULT:,}）")
     if not cfg.api_key:
         print("  ⚠️  没有 key：实现生成会被跳过（只有骨架落地）——这一轮不会有功能，"
               "但**仍会产出 frontend/ + backend/**（平台第一道闸能过）。")
@@ -449,6 +468,22 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
         # 两类靶子分开：引号式/规则式 = **必需**（精确名判、驱动修复）；
         # 散文式（§4.1 第 5 条）= **fail-soft**（只告警、不驱动修复，见 verify/l1.py）
         picked = [e for e in a11y.entries if (wanted is None or e.req_id in wanted)]
+        # 种子数据字面量（PLAN §7 的 3b）：**只取本次子集里的需求**——
+        # 不限范围就会把"子集外需求的种子"也报成缺失（实测：2 条需求的产物被报缺 20 条，
+        # 而这 20 条**全部**属于没生成的需求 → 那就是"又宽又松"）。
+        from reqcompile.prose import extract_seed_literals
+        seed_literals: list[str] = []
+        for n in tree.ordered():
+            if not (n.is_leaf and n.scenarios):
+                continue
+            if wanted is not None and n.id not in wanted:
+                continue
+            txt = (n.description or "") + " " + " ".join(
+                (st.content or "") for sc in n.scenarios for st in sc.steps)
+            for s in extract_seed_literals(txt):
+                if s not in seed_literals:
+                    seed_literals.append(s)
+        print(f"  种子数据字面量（本子集）：{len(seed_literals)} 条")
         required = [e.name for e in picked
                     if e.name and not (e.pattern or "").startswith("prose")]
         soft = [e.name for e in picked
@@ -463,7 +498,7 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
         print("=" * 66)
         result["verify"] = verify_loop(
             output_dir, requirement_brief=brief, required_names=required,
-            soft_names=soft,
+            soft_names=soft, seed_literals=seed_literals,
             template_dir=template_dir, cfg=cfg, rounds=rounds, log=print,
         )
     return result

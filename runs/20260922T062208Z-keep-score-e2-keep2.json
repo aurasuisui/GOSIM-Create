@@ -1,20 +1,20 @@
 {
-  "run_id": "20260921T093005Z-keep-score-m2keep-official.judges",
-  "arm_id": "m2keep-official",
+  "run_id": "20260922T062208Z-keep-score-e2-keep2.judges",
+  "arm_id": "e2-keep2",
   "round": 1,
   "change_description": null,
-  "captured_at": "2026-09-21T10:01:47Z",
+  "captured_at": "2026-09-22T06:53:35Z",
   "app": "keep",
   "port": 3301,
-  "arc_test_date": null,
+  "arc_test_date": "2026-09-20",
   "model": "unknown",
   "visual_model": null,
   "ci_env": null,
   "retries_effective": 0,
   "load_snapshot": "status='🟢 空闲 —— 可以运行 bench 子命令' port3301_listeners=0",
   "pipeline": {
-    "git_commit": "d876da613333f8543ac9e40263ac86f9a2feda15",
-    "git_dirty": true,
+    "git_commit": "ac4b1e51d8d2613ff7c798fcd3ebc9cec8ca6000",
+    "git_dirty": false,
     "git_branch": "main"
   },
   "bench_repo": {
@@ -23,7 +23,7 @@
     "git_branch": "main"
   },
   "requirements_sha256": "20fd6a60bd906dfb409deff5d4a3c2da498de5aa263745279349f49458134f76",
-  "log_path": "runs/20260921T093005Z-keep-score-m2keep-official.judges.log",
+  "log_path": "runs/20260922T062208Z-keep-score-e2-keep2.judges.log",
   "tests_total": 32,
   "tests_passed": 1,
   "tests_failed": 31,
@@ -280,16 +280,16 @@
       "failure_class": "timeout"
     }
   ],
+  "per_test_passed": [
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "title": "REQ-2.1: Note Listing (408ms)"
+    }
+  ],
   "failure_class_counts": {
     "timeout": 31
   },
   "retries_observed": 0,
   "has_summary": true,
-  "per_test_passed": [
-    {
-      "test_id": "REQ-2.1.spec.ts:7",
-      "title": "REQ-2.1: Note Listing (339ms)"
-    }
-  ],
   "log_total_running": 32
 }

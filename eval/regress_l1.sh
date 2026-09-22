@@ -36,12 +36,40 @@ python - "$TMP" "${EXTRA[@]+"${EXTRA[@]}"}" <<'PY'
 import pathlib, sys
 sys.path.insert(0, str(pathlib.Path.cwd() / "pipeline"))
 from verify.l1 import (check_aria_name_sources, check_db_tables, check_module_system,
-                       check_schema_injected, check_syntax_balance)
+                       check_schema_injected, check_seed_literals, check_syntax_balance)
 
 tmp = pathlib.Path(sys.argv[1])
-roots = [pathlib.Path(a) for a in sys.argv[2:]] or sorted(
-    [p for p in tmp.glob("m3b*/") if (p / "app/frontend").is_dir()],
+extra = [pathlib.Path(a) for a in sys.argv[2:]]
+# keep 家族的语料不在 m3b* 前缀里，显式列出（3b 的判别力全靠这几份）
+KEEP_FAMILY = ["m2-keep2", "e2-keep2", "e1b-keep4", "r3b-off", "r3b-on", "m2-keep", "e2-keep"]
+roots = extra or sorted(
+    [p for p in tmp.glob("m3b*/") if (p / "app/frontend").is_dir()] +
+    [p for p in (tmp / n for n in KEEP_FAMILY) if (p / "app/frontend").is_dir()],
     key=lambda p: p.name)
+
+# 3b（种子字面量）的输入：**本次子集**里的需求声明的种子。
+# 从需求文本现算，不写死字面量——需求一变，回归要跟着变（写死就等于把回归钉在旧需求上）。
+KEEP_REQ = pathlib.Path("repos/arc-bench/arc-bench/webapp/keep/requirements/requirements.yaml")
+KEEP_SUBSET = {"REQ-2.1", "REQ-2.2"}          # R3b 的冻结配置（PLAN §7）
+
+def keep_subset_seeds() -> list[str]:
+    if not KEEP_REQ.is_file():
+        return []
+    from reqcompile.loader import load_requirement_tree
+    from reqcompile.prose import extract_seed_literals
+    tree, _report = load_requirement_tree(KEEP_REQ)
+    out: list[str] = []
+    for n in tree.ordered():
+        if not (n.is_leaf and n.scenarios) or n.id not in KEEP_SUBSET:
+            continue
+        txt = (n.description or "") + " " + " ".join(
+            (st.content or "") for sc in n.scenarios for st in sc.steps)
+        for s in extract_seed_literals(txt):
+            if s not in out:
+                out.append(s)
+    return out
+
+SEEDS = keep_subset_seeds()
 
 # 期望值：只写"我们确实知道"的那些（证据见各自 docs/runs）。
 # None = 没有已知结论 → 只打印，不判对错（避免把"未知"当"错"）。
@@ -56,14 +84,21 @@ EXPECT = {
     "m3b1-gate0e":  {"syntax_balance": 1},             # 已知：app.js 少一个 `)`
     "m3b1-gate0c":  {"db_tables": 0, "schema_injected": 0, "aria_name_sources": 0},  # 手工补过 aria-label
     "m3b1-glm":     {"db_tables": 0},                  # 它的毛病是**执行顺序**，静态判不出
+    # 3b 的已知读数（第二十一轮审核 §2.1 独立复现过；这就是 R3b 那条独立证据的机器版）：
+    "m2-keep2":     {"seed_literals": 0},              # REQ-2.1 通过的那两份，种子里字面量都在
+    "e2-keep2":     {"seed_literals": 0},
+    "e1b-keep4":    {"seed_literals": 2},              # 这两份里一次都没出现（REQ-2.1 挂）
+    "r3b-off":      {"seed_literals": 2},
 }
 
 checks = [("db_tables", check_db_tables), ("schema_injected", check_schema_injected),
           ("module_system", check_module_system), ("syntax_balance", check_syntax_balance),
-          ("aria_name_sources", check_aria_name_sources)]
+          ("aria_name_sources", check_aria_name_sources),
+          ("seed_literals", lambda app: check_seed_literals(app, SEEDS))]
 
 bad: list[str] = []
 print(f"语料目录：{tmp}")
+print(f"3b 的种子输入（keep 子集 {sorted(KEEP_SUBSET)}）：{SEEDS}")
 print(f"{'产物':16s} " + "".join(f"{n[:14]:>16s}" for n, _ in checks))
 print("-" * 100)
 for root in roots:

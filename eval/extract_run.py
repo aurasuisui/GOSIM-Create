@@ -29,11 +29,24 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # "  131 passed (3.6m)"  /  "  4 failed"
 RE_SUMMARY = re.compile(r"^\s*(\d+)\s+(passed|failed|skipped|flaky|did not run)\b", re.M)
+# **通过的是哪几条**：list 报告里每条用例一行（`ok` / `x`）——
+# 为什么必须落盘：两轮都是 1/32，但通过的不是同一条（`REQ-2.1` vs `REQ-2.7.3`）
+# ——**通过数会掩盖"分数搬家"**；子集之外的偶然通过也不是能力证据。
+# ⚠️ `[浏览器]` 那一段是**可选**的：同一个 playwright 有两种 list 形态
+#   · keep（ARC webapp）：`ok 1 [chromium] › arc-bench\webapp\keep\tests\REQ-1.1.spec.ts:7:5 › …`
+#   · quickstart（Lab04）：`ok 1 REQ-1-user-registration.spec.ts:48:5 › …`（**没有**浏览器标记）
+# 少了这个 `?`，quickstart 那 8 份日志一条逐条结果都抽不到（而汇总行有数）——
+# 又一次"判据没报错 ≠ 判据跑过了"。
+RE_TEST_LINE = re.compile(
+    r"^\s*(ok|x|✓|✘)\s+\d+\s+(?:\[([\w-]+)\]\s*›\s*)?(.+?\.spec\.[jt]s):(\d+):(\d+)\s*›\s*(.+?)\s*$", re.M)
 # "    [chromium] › arc-bench\webapp\12306\tests\REQ-5.3.1.spec.ts:7:5 › REQ-5.3.1: 标题"
 RE_FAILED = re.compile(
     r"^\s*\[([\w-]+)\]\s*›\s*(.+?\.spec\.[jt]s):(\d+):(\d+)\s*›\s*(.+?)\s*$", re.M
 )
 RE_ERROR = re.compile(r"^\s*(?:Error|expect\S*|Test timeout of \d+ms exceeded)[:.].*$", re.M)
+# **日志自报的独立总数**（Playwright 的 `Running N tests using M workers`）——
+# 它不经过我们自己的汇总行解析，所以能当对照量（守恒自检的"另一端"）。
+RE_RUNNING = re.compile(r"Running (\d+) tests")
 RE_REQ_IN_SPEC = re.compile(r"(REQ-[\d.]+)")
 # Playwright 重试时的输出标记（"retry #1"、"(retry #2)" 等）
 RE_RETRY = re.compile(r"retry\s*#?\s*\d+", re.I)
@@ -66,6 +79,10 @@ def parse_log(text: str) -> dict:
     for n, kind in RE_SUMMARY.findall(text):
         counts[kind] = int(n)
 
+    # 日志自报总数（取**最后一次**：汇总行也是最后一次生效，两者配成同一段输出）
+    running = [int(n) for n in RE_RUNNING.findall(text)]
+    log_total_running = running[-1] if running else None
+
     errors = [e.strip() for e in RE_ERROR.findall(text)]
 
     per_test = []
@@ -83,18 +100,61 @@ def parse_log(text: str) -> dict:
         })
 
     total = counts["passed"] + counts["failed"] + counts["flaky"]
-    return {
+    per_test_passed = [
+        {"test_id": f"{sp.replace(chr(92), '/').split('/')[-1]}:{ln}", "title": title.strip()}
+        for mark, _b, sp, ln, _c, title in RE_TEST_LINE.findall(text) if mark.lower() == "ok"
+    ]
+    out = {
         "tests_total": total or None,
         "tests_passed": counts["passed"],
         "tests_failed": counts["failed"],
         "tests_skipped": counts["skipped"],
         "tests_flaky": counts["flaky"],
         "pass_rate": round(counts["passed"] / total, 4) if total else None,
-        "per_test_failed": per_test,
+        # 列表格式的日志里，失败行带 `x` 前缀 → RE_FAILED（开头就是 `[browser]`）匹配不到，
+        # 于是 `per_test_failed` 一直是空的（而 `tests_failed` 有数）。这里用同一个来源补齐，
+        # 保证"通过集合 / 失败集合"对称、口径一致。
+        "per_test_failed": per_test or [
+            {"test_id": f"{sp.replace(chr(92), '/').split('/')[-1]}:{ln}",
+             "title": title.strip(), "failure_class": "unknown"}
+            for mark, _b, sp, ln, _c, title in RE_TEST_LINE.findall(text) if mark.lower() == "x"
+        ],
+        # 通过集合（同一口径的对称项）——**读数必须连它一起记**
+        "per_test_passed": per_test_passed,
+        # 日志自报的独立总数（对照量）：抽取器算出来的 `tests_total` 要能被它解释
+        "log_total_running": log_total_running,
         "failure_class_counts": _count_by(per_test, "failure_class"),
         "retries_observed": len(RE_RETRY.findall(text)),
         "has_summary": bool(total),
     }
+
+    # === 守恒自检（2026-09-22 改；**这一版才可证伪**）===
+    # 判据：**日志自报的 `Running N tests` 必须能被我们的计数解释**——
+    # 要么等于 `passed+failed+flaky`（Playwright 的 total 不含 skipped），
+    # 要么等于再算上 skipped 的口径。两个都不等 → 抽取器算错了。
+    #
+    # 为什么改：第一版判据写的是 `passed+failed+skipped+flaky == passed+failed+flaky`，
+    # 即 `counted - total ≡ skipped` ——**恒真式**（skipped=0 时永远成立）。
+    # 实测它的两头都错：把 `31 failed` 改成 `3 failed`（模拟"汇总行读错"）它**一声不响**；
+    # 而一条合法的 `3 skipped` 会让它喊"抽取器坏了"（误报）。**方向恰好是反的。**
+    # 现在拿日志里的独立总数当对照 → 两类都能判对。
+    counted = (counts["passed"] + counts["failed"] + counts["skipped"] + counts["flaky"])
+    if log_total_running is not None and log_total_running not in (total, counted):
+        print(f"  ⚠️  守恒自检不通过：日志自报 `Running {log_total_running} tests`，"
+              f"而我们数出来 passed+failed+flaky = {total}"
+              f"（含 skipped 的口径 = {counted}）——两个口径都解释不了它，"
+              "别拿这份记录下结论", file=sys.stderr)
+    elif log_total_running is None and total:
+        print("  ⚠️  守恒自检：日志里**没有** `Running N tests`（独立总数缺失）→"
+              "本次只核到「逐条 vs 汇总」这一层，拿它跟别的轮次比时要留意", file=sys.stderr)
+    if counts["skipped"]:
+        # 这**不是**错误，是分母口径：记录里的 tests_total 不含 skipped。
+        print(f"  提示：本轮有 {counts['skipped']} 条 skipped——Playwright 的 total 不含 skipped，"
+              f"所以 tests_total={total}、日志自报 Running={log_total_running}", file=sys.stderr)
+    if total and per_test_passed == [] and per_test == []:
+        print("  ⚠️  守恒自检：有汇总行却**一条逐条结果都抽不到**"
+              "（解析器与日志格式对不上）", file=sys.stderr)
+    return out
 
 
 def _count_by(items: list[dict], key: str) -> dict:
