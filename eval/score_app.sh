@@ -224,6 +224,8 @@ log "    其它网络类错误计行数：${NETERR:-0}"
 python "$ROOT/eval/extract_run.py" "$JUDGE_LOG" --app "$APP" --arm "$ARM" --port "$PORT" \
   --model "${PIPELINE_LLM_MODEL:-${MODEL:-unknown}}" \
   --load-snapshot "$LOAD_SNAPSHOT" \
+  --snapshot-note "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己" \
+  --app-dir "$APP_DIR" \
   --json-out "$ROOT/runs/${STAMP}-${APP}-score-${ARM}.json" \
   || warn "RunRecord 抽取失败（判据日志可能没跑完）"
 

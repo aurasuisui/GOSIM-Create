@@ -4,9 +4,10 @@
 
 六个主赛道 app 里有四个是**散文式需求**：引号名极少，而"交互单元空转率"（场景步骤里有
 click/select/enter/check/submit、却**拿不到任何 a11y 目标**的比例）实测为
-**prestashop 50% · keep 40% · stackoverflow 29% · ctrip 18%**（12306 只有 2%，因为它自带显式契约）。
-keep 那轮 31 条失败**全是"名字/角色对不上"**（`Toggle sidebar`×14 / `complementary`×7 / `Notes`×7 …）
-——所以这条规则是 keep 通过数的**头号杠杆**，不只是闸门有话可说。
+**最高 50% · 40% · 29% · 18%**（自带显式契约的那份只有 2%）。
+（**按样本名的那张表**在 `docs/06-需求契约实测.md` 的 §十一 —— 样本名属题目特定字符串，不进提交包。）
+实测那轮 31 条失败**全是"名字/角色对不上"**（`Toggle sidebar` ×14（该名由另一条需求命名——见 docs/06 §十一） / `complementary`×7 / `Notes`×7 …）
+——所以这条规则是通过数的**头号杠杆**，不只是闸门有话可说。
 
 ## 三个约束（`PLAN.md` §4.1 裁定，缺一不可）
 
@@ -51,14 +52,14 @@ ROLE_NOUNS: dict[str, str | None] = {
 }
 
 # 纯 role 目标：需求里提到这些**结构**，但没给名字——判据可能只要 role 存在。
-# keep 的 `getByRole('complementary')`×7 就是这一类（侧栏，不需要名字）。
+# 实测里 `getByRole('complementary')` ×7 就是这一类（侧栏，不需要名字）。
 PURE_ROLE_NOUNS: dict[str, str] = {
     "sidebar": "complementary", "side bar": "complementary",
     "navigation": "navigation", "nav bar": "navigation",
     "toolbar": "toolbar", "note editor": "dialog", "dialog": "dialog",
 }
 
-# 祈使动词：**必须带屈折变化**——踩过 `\bclick\b` 的坑（bookstack 的 `clicks the "Save" button`
+# 祈使动词：**必须带屈折变化**——踩过 `\bclick\b` 的坑（某样本写的是 `clicks the "Save" button`
 # 匹配不上，交互单元从 32 掉到 6、空转率虚高到 83%；与 docs/06 §三的 `\btab\bs?` 同一个坑）。
 VERB = (r"(?:click|clicks|clicking|tap|taps|tapping|press|presses|pressing|toggle|toggles|"
         r"open|opens|opening|close|closes|closing|select|selects|selecting|choose|chooses|"
@@ -91,7 +92,7 @@ MAX_NAME_WORDS = 5
 MAX_NAME_CHARS = 40
 
 # 名词短语里**不允许出现**的功能词/动词——这是精度闸门。
-# 实测（约束 2 的风险在这里兑现）：不加它时 keep 抽出 87 条，里面混着
+# 实测（约束 2 的风险在这里兑现）：不加它时某份需求抽出 87 条，里面混着
 # `'note when the'` / `'Trash view from the'` / `'page shows an open'` 这类**从句碎片**，
 # 它们一旦进必需名单，生成阶段就会**烧 token 去追幻影名字**（而赛制按 pass/CNY 排序）。
 BAD_WORDS = {
@@ -168,13 +169,13 @@ def extract_prose_targets(text: str) -> list[tuple[str, str, str]]:
         if name:
             add(role, name, "prose_verb_object")
 
-    # ③ 纯 role 结构（侧栏/导航/编辑器）—— 判据可能只要 role 存在（keep 的 complementary ×7）
+    # ③ 纯 role 结构（侧栏/导航/编辑器）—— 判据可能只要 role 存在（complementary ×7 那种）
     for noun, role in PURE_ROLE_NOUNS.items():
         m = re.search(rf"\b{re.escape(noun)}\b", text, re.I)
         if not m:
             continue
         add(role, "", "prose_pure_role")
-        # 多词结构名（`note editor`）：判据常按 **名字** 找它（`dialog[Note editor]`×4 in keep），
+        # 多词结构名（`note editor`）：判据常按 **名字** 找它（实测 `dialog[Note editor]` ×4），
         # 而短语在需求文本里**逐字存在** → 同时产出一条**带名字**的目标。
         # 单词的结构名（`sidebar`）不加名字：那是通用名词，强行命名反而会误导生成。
         if " " in noun:
@@ -211,7 +212,7 @@ def interaction_units(tree, a11y) -> tuple[int, int]:
 
 # 需求里就是字面引号串，且**整份需求只此一处**能告诉我们"页面必须显示这些内容"：
 #   Seed data: pinned note "Sprint goals" and regular note "Groceries".
-# keep 实测 5 条。而 L1 原先**完全没有这条** —— 所以那轮"种子数据整块丢"零成本就能拦。
+# 实测 5 条。而 L1 原先**完全没有这条** —— 所以那轮"种子数据整块丢"零成本就能拦。
 RE_SEED_HINT = re.compile(r"seed data|种子数据|fixtures?", re.I)
 RE_QUOTED_ANY = re.compile(r"[“\"]([^”\"]{2,60})[”\"]")
 

@@ -76,6 +76,21 @@ verify() {
   echo "$listing" | grep -qx 'requirements.txt' && check "有 requirements.txt" 0 || check "有 requirements.txt" 1
   echo "$listing" | grep -qx 'arc_runtime/__init__.py' && check "有 arc_runtime/（事件 SDK）" 0 || check "有 arc_runtime/（事件 SDK）" 1
 
+  # 7. 红线 9：**包内不许有题目特定字符串**（AGENTS 硬规则 9）
+  #    为什么做成常驻判据：这条是 2026-09-22 第二十七轮审核**人眼 + 一次性脚本**发现的
+  #    （19 处 / 4 个文件，其中一处还是功能代码里的按 app 查表）。本项目的结论一贯是
+  #    **靠纪律防不住、得靠机器**——所以接进打包闸门，每次构建都判。
+  if command -v python >/dev/null 2>&1; then
+    if python "$ROOT/eval/check_bundle_strings.py" --zip "$BUNDLE" >/tmp/_redline9.txt 2>&1; then
+      check "红线 9：包内无题目特定字符串" 0
+    else
+      check "红线 9：包内无题目特定字符串" 1
+      sed -n '3,12p' /tmp/_redline9.txt | sed 's/^/       ↳ /'
+    fi
+  else
+    warn "没有 python，跳过红线 9 自查"
+  fi
+
   # 6. 源码目录齐（缺了会在平台才炸）
   local d
   for d in reqcompile design generate verify report; do

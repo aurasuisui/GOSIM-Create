@@ -110,23 +110,39 @@ REQUEST_SAFE_CHARS = int(MAX_REQUEST_CHARS * 0.7)
 # 到额后**不再开新块，但要把已完成的部分收尾**（schema 注入 + 校验 + 报告），
 # 产出一个"能构建、能起来、已写部分可用"的应用——§4.3 的地板："至少有一部分功能可用"。
 TOKEN_BUDGET_DEFAULT = int(os.environ.get("PIPELINE_TOKEN_BUDGET") or 300_000)
-# 按 app 的预算。**为什么全量 keep 必须调高**（`PLAN.md` §7「R2 的前置」）：
-# 全量 keep 是 **13 块**（6 路由 / 12 端点 / 4 表），而 keep 原设 25 万会**触发降级**
-# → 读的是降级产物的分 = 白跑一轮。
+
+# 🔴 **预算必须由"设计体量"推导，不能按 app 名查表**（2026-09-22，第二十七轮审核 §三 A）：
+# 按 app 名的表是**题目特定字符串**（`AGENTS.md` 红线 9：全仓不能出现），而且它在平台上是**死代码**
+# ——平台的路径里未必解析得到 app 名 → 本地与平台行为不一致。
 #
-# 锚点用**实测的每块成本**外推（不是拍的）：
-#   · 官方档 keep 子集：36,218 token / 5 个实现块 = **7,243/块** → 13 块 ≈ 9.4 万
-#   · 比赛模型 quickstart：207,533 / 8 块 = **25,942/块** → 13 块 ≈ 33.7 万
-#     （flash 的 reasoning 占输出 90%+，所以同块它的成本是官方档的 3.6 倍）
-# → 预算按**比赛模型**那一列放大到 2 倍左右，留出"设计啰嗦 / 闭环多跑一轮"的余量。
-APP_TOKEN_BUDGET = {"keep": 700_000, "bookstack": 700_000, "stackoverflow": 700_000,
-                    "prestashop": 900_000, "12306": 900_000, "ctrip": 900_000}
+# 公式的锚点（全部来自**实测**，可复算：`build_requirement_brief(tree, a11y, None)` 的长度）：
+#   六份需求的全量 brief 是 **19.9k – 116.4k 字符**（最长的那个 116k）；
+#   旧表按体量分两档（小 ≈70 万 / 大 ≈90 万 token），而两档对应的 brief 是 19.9k–22.8k 与 47.2k–116.4k。
+#   → 取线性式 `BUDGET_BASE + BUDGET_PER_CHAR × brief 字符`，系数**按"两档都不得低于旧值"解出来**：
+#       ① 19,909 字符 ≥ 700,000  →  BASE + 19909·k ≥ 700,000
+#       ② 47,223 字符 ≥ 900,000  →  BASE + 47223·k ≥ 900,000
+#     解得 k ≥ 7.3、BASE ≥ 554k → 取 **k = 8、BASE = 560,000**（留一点余量）。
+#   验收判据（第二十七轮审核定的）：**新公式对六个 app 都不低于旧表值**（见 `docs/06` 的对照表）。
+#   ⚠️ 上限 1.2M > 旧表最大值 0.9M，所以最大那个 app 也不会被压低。
+BUDGET_BASE = 560_000
+BUDGET_PER_CHAR = 8
+BUDGET_MIN = 300_000
+BUDGET_MAX = 1_200_000
 
 
-def token_budget(app_hint: str | None = None) -> int:
-    if (os.environ.get("PIPELINE_TOKEN_BUDGET") or "").strip():
-        return int(os.environ["PIPELINE_TOKEN_BUDGET"])
-    return APP_TOKEN_BUDGET.get((app_hint or "").lower(), TOKEN_BUDGET_DEFAULT)
+def token_budget(brief_chars: int | None = None) -> int:
+    """按**需求 brief 的字符数**推导预算（`PIPELINE_TOKEN_BUDGET` 可硬覆盖）。
+
+    为什么用 brief 长度当代理：它**零 token 可算**、随设计体量单调（需求越多 → 路由/页面越多 →
+    块越多 → 需要的预算越大），而且不含任何题目特定字符串。
+    拿不到 brief 时（例如只跑设计阶段）退回 `BUDGET_MIN`。
+    """
+    env = (os.environ.get("PIPELINE_TOKEN_BUDGET") or "").strip()
+    if env:
+        return int(env)
+    if not brief_chars:
+        return max(BUDGET_MIN, TOKEN_BUDGET_DEFAULT)
+    return max(BUDGET_MIN, min(BUDGET_MAX, BUDGET_BASE + BUDGET_PER_CHAR * int(brief_chars)))
 
 
 def _est_chunk_tokens(chunk: dict) -> int:
@@ -177,8 +193,15 @@ def build_skeleton_brief(output_dir: Path, log=print) -> str:
     return brief
 
 
-def build_requirement_brief(tree, a11y_index, req_ids: list[str] | None) -> str:
-    """把目标需求写成 brief：描述 + 场景 + 可访问名清单（后者是我们抽出来的**靶子**）。"""
+def build_requirement_brief(tree, a11y_index, req_ids: list[str] | None,
+                            extra_hard: list[str] | None = None) -> str:
+    """把目标需求写成 brief：描述 + 场景 + 可访问名清单（后者是我们抽出来的**靶子**）。
+
+    `extra_hard` = **阶梯 ② 的对表产物**（`eval/subset_closure.py` 的「未覆盖」栏）：
+    判据要、而**本子集需求文本没点名**的名字（`keep` 的 `Toggle sidebar` 就是这一类漏的）。
+    由**操作者**经环境变量传进来，**不写进仓库**——仓库里出现题目特定字符串会撞
+    "不得预埋答案"（`AGENTS.md` 红线 9）。
+    """
     nodes = [n for n in tree.ordered() if n.is_leaf and n.scenarios]
     if req_ids:
         wanted = set(req_ids)
@@ -217,6 +240,16 @@ def build_requirement_brief(tree, a11y_index, req_ids: list[str] | None) -> str:
                 role = e.role or "(role 任意)"
                 nm = f" {e.name!r}" if e.name else "（**只要该角色存在**，名字不限）"
                 parts.append(f"  - [{role}]{nm}")
+        parts.append("")
+    # ---- ② 对表补进来的硬名（**本子集需求文本没点名、但判据要**）----
+    # 为什么单列一块：它不是"从需求里读到的"，而是"从**判据闭包**里算出来的"（零 token）。
+    # 必须同样"逐字兑现"——否则就是 `keep` 那条 14 个断言必挂的下场。
+    if extra_hard:
+        parts.append("**必须逐字兑现**的补充名（**判据的靶子闭包算出来的**，需求文本没写；"
+                     "同样按可访问名或可见文本兑现，不得改名）：")
+        for name in extra_hard:
+            if name:
+                parts.append(f"  - {name!r}")
         parts.append("")
     return "\n".join(parts)
 
@@ -280,10 +313,10 @@ def _chunk_messages(chunk: dict, design: str, skeleton: str,
     """拼这一块的请求。**并把请求压到安全线以内**（不靠"太大就抛异常"）。
 
     **需求部分是这一块的切片**（`chunk['brief_slice']`），不是整份 brief——
-    keep 的全量 brief 是 15,923 字符，逐块重发会立刻顶满预算（见 `chunkplan.py`）。
+    全量 brief 实测 15,923 字符（最大的那份 11.6 万），逐块重发会立刻顶满预算（见 `chunkplan.py`）。
     schema 块的切片为空是**故意的**：表清单在它的 ask 里，而设计 JSON 每块都会带上。
 
-    ⚠️ **为什么要在这里压体积**（2026-09-22 R2 实测的教训）：全量 keep 的 13 块里，
+    ⚠️ **为什么要在这里压体积**（2026-09-22 实测的教训）：全量那份的 13 块里，
     后面的页面块请求涨到 **19,267 字符（预算的 80%）** → 网关断连 → 我立的
     `RequestTooLarge`（0.8× 阈值）**把整个 run 中止**，产物停在 10/13 块
     （缺 App.tsx 外壳、没跑闭环）→ **烧掉的 token 换不回任何可判分的产物**，
@@ -450,7 +483,7 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
 
     written: list[str] = []
     written_by_chunk: dict[str, list[str]] = {}
-    budget = token_budget(app_hint)
+    budget = token_budget(len(requirement_brief))
     skipped: list[str] = []
     failed: list[dict] = []      # 单块失败就地降级：跳过但记下来
     log(f"  token 预算 {budget:,}（到额就收尾，不硬跑；`PIPELINE_TOKEN_BUDGET` 可覆盖）")

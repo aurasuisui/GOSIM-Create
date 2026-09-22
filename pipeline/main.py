@@ -178,11 +178,12 @@ def log_model_env(output_dir: Path) -> None:
     print(f"  PIPELINE_REPAIR_ROUNDS: {rounds_env or 'absent'}（absent = 默认 3 → 实际只有 rounds-1 次修复）")
     print(f"  PIPELINE_DESIGN_ONLY  : {(_os.environ.get('PIPELINE_DESIGN_ONLY') or '').strip() or 'absent'}"
           "（=1 只跑设计、不生成，省 token）")
-    # 预算档位**从代码里读**，不写死在文案里（写死就会与代码漂移 = "工具与文档不一致"）
-    from generate.implement import APP_TOKEN_BUDGET, TOKEN_BUDGET_DEFAULT
+    # 预算公式的常数**从代码里读**，不写死在文案里（写死就会与代码漂移 = "工具与文档不一致"）
+    from generate.implement import BUDGET_BASE, BUDGET_MAX, BUDGET_MIN, BUDGET_PER_CHAR
     budget_env = (_os.environ.get("PIPELINE_TOKEN_BUDGET") or "").strip()
-    print(f"  token 预算            : {budget_env or '（未设 → 按 app 档位）'}"
-          f"   内置档位={APP_TOKEN_BUDGET}（默认 {TOKEN_BUDGET_DEFAULT:,}）")
+    print(f"  token 预算            : {budget_env or '（未设 → 按 brief 体量推导）'}"
+          f"   公式={BUDGET_BASE:,} + {BUDGET_PER_CHAR}×brief字符，"
+          f"clamp[{BUDGET_MIN:,}, {BUDGET_MAX:,}]")
     if not cfg.api_key:
         print("  ⚠️  没有 key：实现生成会被跳过（只有骨架落地）——这一轮不会有功能，"
               "但**仍会产出 frontend/ + backend/**（平台第一道闸能过）。")
@@ -361,6 +362,20 @@ def cmd_compile(args: argparse.Namespace) -> int:
             runtime.events.mark_run_failed(f"scaffold failed: {exc}")
             raise
 
+        # ---- 产物指纹（**出生处**盖，不是写记录时现采）----
+        # 第二十三轮审核 §三 的根因：记录里的 `pipeline.git_*` 原本在判分跑完（约一小时后）
+        # 才求值 → attest 的是那一刻的工作区，不是这份产物。写法与理由见 `provenance.py`。
+        from provenance import write as _write_provenance
+        _req_ids = [s for s in (os.environ.get("PIPELINE_REQ_IDS") or "")
+                    .replace("，", ",").split(",") if s.strip()]
+        _prov_extra = {
+            "app_hint": _app_hint(tree, output_dir),
+            "req_ids": _req_ids,
+            "generate_mode": (os.environ.get("PIPELINE_GENERATE") or "").strip(),
+        }
+        summary["provenance"] = _write_provenance(
+            output_dir, requirement_path=getattr(tree, "source_path", None), extra=_prov_extra)
+
         # ---- 实现生成（第 2/4 阶段的最小版本）----
         # 开关（环境变量，因为入口契约不许加 CLI 参数）：
         #   PIPELINE_GENERATE=0 → 跳过（做基础设施验证时用，不烧 token）
@@ -370,10 +385,28 @@ def cmd_compile(args: argparse.Namespace) -> int:
         mode = (os.environ.get("PIPELINE_GENERATE") or "").strip()
         summary["generation"] = run_generation(
             tree, a11y, output_dir, runtime=runtime, mode=mode,
-            req_ids=[s for s in (os.environ.get("PIPELINE_REQ_IDS") or "").replace("，", ",").split(",") if s.strip()],
+            req_ids=_req_ids,
         )
 
         elapsed = time.time() - started
+        # 指纹补第二次（把"跑完"这个事实也写进去；最后一次调用生效）
+        # ⚠️ **必须等闭环跑完再盖**（第二十四轮审核 §三 A）：`run_generation` 内部才跑验证闭环，
+        # 闭环绕的 token 占全程 **51–58%**（闭环自己那轮实测的核心量，也是 pass/CNY 的分母），
+        # 早盖会把 `tokens_total` 写成"只有生成那一段"（实测 15,833 = 全程 42%）。
+        # 两个数**分开命名**，别让一个字段同时表示两件事：
+        #   tokens_generation_only = 生成段（设计 + 各块实现）
+        #   tokens_total           = 全程（生成段 + 验证闭环）——**没有闭环时两者相等**
+        _gen = (summary.get("generation") or {})
+        _gen_tok = (_gen.get("usage") or {}).get("total_tokens")
+        _ver = (_gen.get("verify") or {})
+        _ver_tok = (_ver.get("usage") or {}).get("total_tokens")
+        _write_provenance(output_dir, requirement_path=getattr(tree, "source_path", None),
+                          extra={**_prov_extra,
+                                 "stage_seconds": round(elapsed, 1),
+                                 "tokens_generation_only": _gen_tok,
+                                 "tokens_total": _ver_tok if _ver_tok is not None else _gen_tok,
+                                 "verify_ran": bool(_ver) and not _ver.get("skipped")},
+                          log=lambda *a, **k: None)
         print()
         print("-" * 66)
         print(f"阶段完成，用时 {elapsed:.1f}s   {summary}")
@@ -392,11 +425,14 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 
 def _app_hint(tree, output_dir: Path) -> str:
-    """app 名（用于按 app 取 token 预算）：需求树的源路径末段，例如 `…/webapp/keep` → `keep`。
+    """app 名：需求树的源路径末段（例如 `…/webapp/<app>` → `<app>`）。
+
+    只用于**记录/日志/指纹**（`provenance.json` 的 `app_hint`）——
+    **token 预算已改成按 brief 体量推导**（`generate.implement.token_budget`），不再按 app 名查表。
 
     拿不到就返回空串 → 走默认预算（`PLAN.md` §4.3 的"每个阶段显式预算"）。
     """
-    # 需求路径的形态不止一种：`…/webapp/keep/requirements/requirements.yaml`、
+    # 需求路径的形态不止一种：`…/webapp/<app>/requirements/requirements.yaml`、
     # `…/example/ticketbooking-quickstart/requirements.yaml`、平台输出的临时目录……
     # 所以**从路径往上走，跳过已知的非 app 段**，取第一个剩下的名字。
     skip = {".", "webapp", "example", "template", "app", "requirements", "requirement"}
@@ -437,7 +473,7 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
     print(f"实现生成（模型 {cfg.model}，需求范围 {req_ids or '全部有场景的叶子'}）")
     print("=" * 66)
     try:
-        # app 名用于按 app 取 token 预算；需求路径的末段就是 app 名（…/webapp/keep）
+        # app 名用于记录/指纹；需求路径的末段就是它（…/webapp/<app>）
         app_hint = _app_hint(tree, output_dir)
         result = generate_app(tree, a11y, output_dir, cfg, req_ids=req_ids or None,
                               app_hint=app_hint)
@@ -446,8 +482,9 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
         raise
 
     # ---- 到额降级：预算已花完就不再进闭环（闭环是"打磨"，不决定有没有分）----
-    from generate.implement import token_budget
-    budget = token_budget(app_hint)
+    # 预算**由生成阶段按 brief 体量算好**并回传（`generate.implement.token_budget`）——
+    # 这里不重新按 app 名查表（那张表是题目特定字符串，已删）
+    budget = result.get("token_budget") or 0
     spent = (result.get("usage") or {}).get("total_tokens") or 0
     if spent >= budget:
         print()
@@ -463,7 +500,12 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
         from generate.scaffold import find_template_root, TEMPLATE_ID
         from verify.loop import verify_loop
 
-        brief = build_requirement_brief(tree, a11y, req_ids or None)
+        # ② 对表补进来的硬名（**操作者**通过环境变量传；不写进仓库，见 AGENTS 红线 9）
+        extra_hard = [s.strip() for s in (os.environ.get("PIPELINE_EXTRA_HARD_NAMES") or "")
+                      .replace("，", ",").split(",") if s.strip()]
+        if extra_hard:
+            print(f"  补充硬名（来自 ② 的靶子闭包对表）：{extra_hard}")
+        brief = build_requirement_brief(tree, a11y, req_ids or None, extra_hard=extra_hard)
         wanted = set(req_ids) if req_ids else None
         # 两类靶子分开：引号式/规则式 = **必需**（精确名判、驱动修复）；
         # 散文式（§4.1 第 5 条）= **fail-soft**（只告警、不驱动修复，见 verify/l1.py）
@@ -484,8 +526,10 @@ def run_generation(tree, a11y, output_dir, *, runtime, mode: str, req_ids: list[
                 if s not in seed_literals:
                     seed_literals.append(s)
         print(f"  种子数据字面量（本子集）：{len(seed_literals)} 条")
+        # 补充硬名也进"契约"（L1 的 check_accessible_names + 3a 的 priority 0）——
+        # 否则它只是 prompt 里的一句话，"发现没兑现"就没人管
         required = [e.name for e in picked
-                    if e.name and not (e.pattern or "").startswith("prose")]
+                    if e.name and not (e.pattern or "").startswith("prose")] + extra_hard
         soft = [e.name for e in picked
                 if e.name and (e.pattern or "").startswith("prose")]
         root = find_template_root()

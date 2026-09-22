@@ -16,18 +16,18 @@
 
 ## 实测：表述方式不统一（这是本模块的设计约束）
 
-对六个赛题抽样后的真实句式：
+对**六份需求样本**抽样后的真实句式（**按句式归类、不按样本名**——样本名属题目特定字符串，
+`AGENTS.md` 红线 9；带样本名的原表已搬进 `docs/06-需求契约实测.md` 的 §十一）：
 
-    12306        input fields labeled "Name", "Passport number", ...
-                 the "Register" button                 （"X" <role> 是主流，210 处）
-    bookstack    enters ... in the "Email address" field
-                 clicks `New Shelf` / `Login`          （反引号 = 可点击）
-    prestashop   Click "Sign in" link / "Clear all" button
-    stackoverflow  "Log in" submit button, "Forgot password?" link
-    ctrip        带中文（989 个汉字），另有 labeled 2 处
-    quickstart   `用户名` 为必填文本输入框 …        （中文反引号 + 为…输入框）
+    ① `input fields labeled "Name", "Passport number", ...` / `the "Register" button`
+       —— `"X" <role>` 是主流（单份样本里 210 处）
+    ② `enters ... in the "Email address" field` / 反引号 `` `New Shelf` ``（可点击）
+    ③ `Click "Sign in" link` / `"Clear all" button`
+    ④ `"Log in" submit button` / `"Forgot password?" link`
+    ⑤ **中文契约句**：`` `用户名` 为必填文本输入框 ``（某份样本 989 个汉字、另有 labeled 2 处）
+    ⑥ 中文反引号 + `为…输入框`（快捷示例那种）
 
-**没有任何一种句式覆盖全部六个。** 所以这里用**模式表**而不是写死逻辑：
+**没有任何一种句式覆盖全部样本。** 所以这里用**模式表**而不是写死逻辑：
 每种句式一条规则，新增 app 只需加规则，不动代码。
 
 ## 设计原则
@@ -136,9 +136,9 @@ def _consume_quoted_list(text: str, pos: int) -> list[tuple[str, int, int]]:
     """从 pos 起吃一串引号名（逗号 / and / or / 顿号 分隔）。
 
     这是本抽取器最关键的一个函数：实测里绝大多数名字是**成串出现的**，
-    只抓第一个会漏掉大半（12306 上覆盖率从 70% 卡住的原因）。
+    只抓第一个会漏掉大半（某份样本上覆盖率从 70% 卡住的原因）。
 
-    ⚠️ **分隔符里带"动作动词"就断串**（2026-09-21 实测的错角色）：keep REQ-2.2 的句子是
+    ⚠️ **分隔符里带"动作动词"就断串**（2026-09-21 实测的错角色）：某样本一条需求的句子是
     `enter a title in the "Title" field and content in the "Note content" field, and click "Close"`
     —— `, and click ` 被当成普通连接词，于是 **`Close` 被并进"输入框"那一串、角色继承成 `textbox`**。
     后果不是"少一条"而是"错一条"：生成阶段照这个契约做，审查又照着它报
@@ -340,7 +340,7 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
             evidence=text[max(0, start - 50):min(len(text), end + 50)].strip(),
         ))
 
-    # ---- 规则 A：中文契约句 `X` 为……输入框（quickstart / ctrip 那种）----
+    # ---- 规则 A：中文契约句 `X` 为……输入框（中文需求那种）----
     if ZH_CONTRACT_HINT.search(text) or ZH_CLAUSE.search(text):
         _extract_zh_contracts(text, req_id, index)
 
@@ -376,7 +376,7 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
             if not q or q.start() > MAX_FILLER:
                 continue
             # 角色词与首个引号之间出现**动作动词** → 这个引号名不属于本角色词管的那类控件。
-            # 实测（keep REQ-2.2）：句子里有两个 `field`，第二个 `field` 后面跟的是
+            # 实测（某样本的一条需求）：句子里有两个 `field`，第二个 `field` 后面跟的是
             # `, and click "Close"`，于是 `Close` 继承了"输入框"的角色 → 契约错，
             # 审查照着它报、修复来回改三轮——而判据要的是 `button[Close]`。
             if RE_LIST_STOP.search(tail[:q.start()]):
@@ -397,8 +397,8 @@ def _extract_from_text(text: str, req_id: str, kind: str, index: AccessibleNameI
     # ---- 规则 E（§4.1 第 5 条）：**散文名词枚举 + role 映射** ----
     # 引号名之外的那些：`Click the X link` / `fill in the X field` / `the X button` /
     # 结构名词（sidebar → complementary、note editor → dialog）。
-    # 为什么需要：四个散文式 app 的交互单元空转率 18–50%（keep 40%），
-    # 而 keep 那轮 31 条失败**全是**"名字/角色对不上"。
+    # 为什么需要：四份**散文式**样本的交互单元空转率 18–50%（最高的那份 40%），
+    # 而实测那轮 31 条失败**全是**"名字/角色对不上"。
     # 三个约束（位置约束 / 报精度 / L1 fail-soft）见 `reqcompile/prose.py` 的模块头。
     # ⚠️ 这些条目标 `required=False`（约束 3：散文式先 **fail-soft** 不判死），
     # L1 按 `pattern.startswith("prose")` 区分处理。

@@ -177,9 +177,13 @@ def inject_schema(output_dir: Path, *, log=print) -> dict:
 
     statements = read_schema_statements(output_dir)
     if not statements:
-        log(f"  ⚠️  {SCHEMA_REL} 不存在或没有语句 —— 建表无处落位"
-            "（L1 的 db_tables 会报出来，闭环会要求补这个文件）")
-        return {"injected": False, "reason": "no-schema-file"}
+        exists = (output_dir / SCHEMA_REL).is_file()
+        log(f"  ⚠️  {SCHEMA_REL} {'存在但没有 CREATE TABLE 语句' if exists else '不存在'}"
+            " —— 建表无处落位（L1 的 db_tables 会报出来，闭环会要求补这个文件）")
+        # 文案要准（第二十七轮审核 §二.8）：文件**存在**、只是没有表时，说 "no-schema-file" 会误导
+        # （实测踩过：某轮 `schema.sql` 只有一行注释"设计里没有表"，而 reason 写的是文件不存在）
+        return {"injected": False,
+                "reason": "schema-has-no-statements" if exists else "no-schema-file"}
 
     text = init_path.read_text(encoding="utf-8")
     if REQUIRED_HELPER not in text:

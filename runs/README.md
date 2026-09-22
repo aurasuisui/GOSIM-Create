@@ -39,7 +39,6 @@ runs/
 ## RunRecord 格式
 
 **完整字段清单见 `docs/04-测量协议.md` §5。** 最小可用版本：
-
 ```json
 {
   "run_id": "20260920T103000Z-12306-arm-glm53",
@@ -87,6 +86,72 @@ runs/
   "notes": ""
 }
 ```
+
+---
+
+## 🔴 怎么**机器筛**一轮读数（2026-09-22 加；三个字段，别读人读句）
+
+`docs/04` §一 要求「只在静置条件下比较」（`load_snapshot` 必须是 `free`/`free-leftover` 且 `runners=0`），
+`AGENTS.md` 要求「跑测量前工作区必须干净」。这两条原来只能**人读**——而人读会误判：
+实测过一次"头条记录被自己的护栏字段读成污染轮"（审核 23 §三 A）。现在**三个字段都能机器判**：
+
+| 字段 | 取值 | 说明 |
+|---|---|---|
+| `load_snapshot` | `status=free runners=0 port=free listeners=0` | **机器可读形式**（`bench.sh verdict`），由 `score_app.sh` 在**拿锁之前**采 |
+| `snapshot_note` | 一句话 | 这份快照"什么时候、在什么状态下采的"（防"持锁自采"这类自指） |
+| `artifact_fingerprint` | `{git_commit, code_clean, basis, stamped_at_product}` | **产出这份产物的代码干不干净**（首选产物出生处的指纹） |
+
+```bash
+# 只挑"静置 + 代码干净"的轮次（示例；字段拿不到就别当通过）
+python - <<'PY'
+import json, pathlib
+for p in sorted(pathlib.Path("runs").glob("*.json")):
+    d = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(d, dict) or "app" not in d: continue
+    snap = (d.get("load_snapshot") or "")
+    fp = d.get("artifact_fingerprint") or {}
+    quiet = "status=free" in snap and "runners=0" in snap
+    print(f"{p.stem:52s} 静置={quiet} 代码干净={fp.get('code_clean')} 出生处指纹={fp.get('stamped_at_product')}")
+PY
+```
+
+⚠️ **两种筛法给出的成员不同，引用时必须写明用哪个**（第二十四轮审核 §三 B 点出这条）。
+
+| 筛法 | 判据（**照这个判，别照数量**） | 截至 2026-09-22 19:5x |
+|---|---|---|
+| **严格法** | 含 `listeners=` **且** `status=free`（= **只认新格式**，`bench.sh verdict` 那种） | **2**：`r4-keep4b` / `r4-keep4-n2` |
+| **字段法** | 结论词 ∈ {`free` / `free-leftover`（旧形态文案 `空闲` / `可运行…残留后端`）} **且** `listeners=0` **且**（有 `runners=N` 时）`runners=0` | **14**（含 quickstart 4 + keep 系 10） |
+| **字段法 + 代码干净** | 上一行 **且** `artifact_fingerprint.code_clean is True` | 只剩新格式那几份 + 旧记录里补注过 `code_clean` 的（如 `r4-keep4b`） |
+
+- **`load_snapshot` 一共出现过三种形态**（第二十五轮审核 §三 B' 指出我先前漏了第二种）：
+
+  | 形态 | 长相 | 出现在 |
+  |---|---|---|
+  | ① **全角分号分隔**（老机器可读） | `status=free；runners=0；port=free；ci=<unset>；at=…` | **9/20 那批（`12306-round*`）** |
+  | ② **人读句** | `status='🟢 空闲 —— 可以运行 bench 子命令' port3301_listeners=0` | 9/21–9/22 |
+  | ③ `=` 分隔（**新格式**） | `status=free runners=0 port=free listeners=0` | 9/22 起（`bench.sh verdict`） |
+
+  ⚠️ ①的 `status=free` 是**真实记录**、不是误记 → 判据若只查 `status=free` 字面量会把 ① 也算进"严格法"（=3）。
+  所以严格法必须要求 **`listeners=`**（①没有这个字段）。**收紧后 = 2 ✔**。
+  🔴 **但别因此把 ① 排除出"静置轮清单"**——9/20 那两份（`12306-round1` 等）**正是噪声底线（静置序列）的证据**，
+  把它们筛掉会让下一个会话找不到噪声底线的来源。**要覆盖全部历史就用字段法。**
+- 差别的来源：旧记录的 `load_snapshot` 大多是**人读句**，严格法匹配不到新格式就把它判成"不静置"——
+  **那是把"没记成新格式"读成了"没静置"**（同"没记 ≠ 没通过"）。**要看旧的静置轮就必然用字段法**。
+- 🔴 **`code_clean` 只在有 `artifact_fingerprint` 的记录里存在**——旧记录**多数没有这个字段**，
+  而**未记 ≠ 不干净**：要判旧记录该字段缺省时，回到"跑之前工作区提交干净"那条纪律去查（或直接重跑）。
+- ✅ **对本项目当前最重要的比较，两条腿都站得住**：`r4-keep4b`（头条）与 `e1b-keep4`（它的基线）
+  **在字段法下都是静置**，且 `e1b-keep4` 的 `pipeline.git_dirty=false`（`r4-keep4b` 的见上表与 `snapshot_note`）。
+
+**为什么要有 `stamped_at_product`**：`pipeline.git_dirty` 原来是在**写记录时**（判分跑完约一小时后）
+现采的 → 它 attest 的是那一刻的工作区，**不是产物出生时**。所以现在：
+`main.py` 在生成阶段结束时把 `{git_commit, git_dirty, requirement_sha256, app_hint, req_ids, …}`
+写进**产物本身**（`<app>/.arc/provenance.json`，实现见 `pipeline/provenance.py`），
+`extract_run.py` **优先读它**（`provenance_source=stage-artifact`），读不到才退回现采并标注。
+
+⚠️ **别名提醒**：`load_snapshot` 的**旧记录**里还有两种旧形态——`status='🟢 空闲 —— …'`（人读句）
+与 `status='🟢 正在跑…'`（**持锁自采**，只反映自己）。**旧记录照旧读，别按新格式硬筛**；
+要筛旧记录就按 `port3301_listeners` / `runners` 这类字段，并按 `docs/04` §一 的限定词标注
+（审核 §四.F 的同源提醒：**别比 status 字面量**）。
 
 ---
 
@@ -162,6 +227,59 @@ runs/
 
 ---
 
+## 2026-09-22 追加：阶梯① `stackoverflow`（第三个 app，**非零**）
+
+| arm | 子集（按 §7 ② 的规则定） | 生成 token | 判分 | **通过的是哪条** | record |
+|---|---|---|---|---|---|
+| `so1` | **`{REQ-1.1}`**（helper 最少的候选里，取闭包最小且「未覆盖」栏只含一个**名字**的那个）+ 补充硬名 `questions` | **13,830**（生成段 7,202 + 闭环；预算由新公式推得 564,152） | **1 / 66**（1.0 小时） | **`REQ-1.3.spec.ts:7`（390ms）—— 子集外** | `runs/20260922T143205Z-stackoverflow-score-so1.json` |
+
+**判读（预注册第 ① 格）**：**非零** ✅ → 第 3 个 app 拿到分。
+⚠️ **但这一轮的非零不是子集装置换来的**：**子集那条（`REQ-1.1`）自己挂了**，
+过的是子集外的 `REQ-1.3`（"偶然通过"）。按闸门口径（只问非不非零）它算数；
+按能力口径它**不算证据**。1/66 = 1.5%，其余 65 条属**子集外**（页面/流程不存在）。
+
+**③ 的第一次「漏报」——本轮最有价值的一条**：③ 判分前预测 `REQ-1.1` 会过、实际挂了（FN）。
+原因已定位到源码：判据要 `/header/i`、`/sidebar/i`、`/questions/i` 三者**可达**，
+而 `namedLocators()` 只在 **8 种 role 的可访问名** + `getByLabel/Placeholder/Text` 里找；
+产物里 `header` 只出现在 `<header>` 标签与 axios 的 `headers:` 键里、`sidebar` 只出现在
+`aria-label="Sidebar"`（挂在不在那 8 种 role 里的元素上）→ **字符串在源码里 ≠ 文本/可访问名可达**。
+→ **③ 的盲区清单两条**：① 流程/页面不存在（bookstack 的两条）；② 字符串可达 ≠ 可访问名可达（本条）。
+同一条结论：**别把"预测通过"读成"会过"**，也**别拿它当闸门**（阈值待方案复核）。
+
+**记录质量**：出生处指纹齐（`stamped_at_product=true` / `git_dirty=false`）、
+`load_snapshot` 是拿锁前的机器可读形式、**③ 的预测写进了记录的 `predicted` 字段**
+（`%TEMP%/so1/predict.txt` 在判分**之前**落盘 —— 它是 9/24 决策规则里 `B_pred` 的唯一来源）。
+
+---
+
+## 2026-09-22 追加：阶梯① `bookstack`（第二个 app，**非零**）
+
+**闸门是"6 个 app 都非零"**（`PLAN.md` §7），顺序按判分成本升序。这是第二个 app。
+
+| arm | 子集（按 §7 ② 的规则定） | 生成 token | 判分 | **通过的是哪条** | record |
+|---|---|---|---|---|---|
+| `bookstack1` | **`{REQ-1.1, REQ-2.1}`**（helper 最少的候选里覆盖两个入口面：首页 `openHome` + 登录页 `openLoginPage`）+ 补充硬名 `BookStack` | **18,004**（9 次调用；生成段 10,007 + 闭环） | **2 / 34**（34.7 分钟） | **`REQ-1.1.spec.ts:7`（480ms）** + **`REQ-2.1.spec.ts:7`（468ms）** | `runs/20260922T120254Z-bookstack-score-bookstack1.json` |
+
+**判读（预注册第 ① 格）**：**非零 = 阶梯①的第一段成立**。
+⚠️ 2/34 = 5.9% 只说明"这个 app 有分"，**不说明能力**：其余 32 条属**子集外**
+（多为"页面/流程不存在"）——闸门只问"非不非零"。
+
+**这一轮把 ②③ 两个工具都用上了，而且都当场兑现**：
+- **② 的「未覆盖」栏抓到 `'BookStack'`**（`REQ-1.1` 的 spec 要它显示，而**本子集需求文本没写**——
+  全量文本里有，正是 `keep` 的 `Toggle sidebar` 那一类漏法）→ 用
+  `PIPELINE_EXTRA_HARD_NAMES=BookStack` 注入。**生成第 1 轮 L1 就报 `accessible_names: 1`**
+  （'BookStack' 一次都没出现）→ 修复 → 第 2 轮 0 条。**零成本抓到 + 零成本验证修好了。**
+- **③ 的标定（同产物、全量 34 spec）**：**TP=30 FP=0 FN=2 TN=2**（精度 100% / 召回 94%）。
+  两条 FN（`REQ-5.3.2` / `REQ-5.5.1`）的失败是**结构性**的（页面/流程不存在），
+  而 ③ 只查"名字在不在源码里" → **它的已知盲区：抓得住"名字对不上"，抓不住"流程没实现"**。
+  ⚠️ 别把"预测通过"读成"会过"；也**别拿它当闸门**（§7 ③ 的"预测失败 = 0"比闸门更严，待复核）。
+
+**记录质量**：这是**第一份带"产物出生处指纹"**的记录（`stamped_at_product=true`、
+`git_dirty=false`、`pipeline_dirty=false`）——指纹在生成结束时盖进产物自己的
+`.arc/provenance.json`，不再依赖"写记录时现采"（第二十三/二十四轮审核的那条根因）。
+
+---
+
 ## 2026-09-22 追加：预注册复跑 `r4-keep4`（3a+3b 生效）
 
 **它回答的问题**：3a（repair 契约优先级）+ 3b（种子字面量**判死**）能不能把 `REQ-2.1` 拿回来。
@@ -170,13 +288,20 @@ runs/
 | arm | 配置 | 生成 token | 判分 | **通过的是哪条** | record |
 |---|---|---|---|---|---|
 | `r4-keep4`（生成） | 4 条子集 `{REQ-1.1,REQ-2.1,REQ-2.2,REQ-6.2}` + 3a/3b 生效、闭环 ON | **37,290** | — | — | 生成日志 `%TEMP%/r4-keep4/gen.log`（不入库，见上第 3 条） |
-| `r4-keep4b`（判分） | 同一产物，官方档、静置 | —（复用产物） | **2 / 32**（29.0 分钟） | **`REQ-2.1.spec.ts:7`（812ms）** + `REQ-2.7.3.spec.ts:7`（736ms） | `runs/20260922T090406Z-keep-score-r4-keep4b.json` |
+| `r4-keep4b`（判分 n=1） | 同一产物，官方档、静置 | —（复用产物） | **2 / 32**（29.0 分钟） | **`REQ-2.1.spec.ts:7`（812ms）** + `REQ-2.7.3.spec.ts:7`（736ms） | `runs/20260922T090406Z-keep-score-r4-keep4b.json` |
+| `r4-keep4-n2`（判分 n=2） | **同一份产物**（未重新生成、**零 token**）、预注册 `%TEMP%/r4-keep4/PREREG-n2.md` | — | **2 / 32**（28.9 分钟） | **成员逐条相同**：`REQ-2.1.spec.ts:7`（**726ms**）+ `REQ-2.7.3.spec.ts:7`（448ms） | `runs/20260922T104719Z-keep-score-r4-keep4-n2.json` |
 | ~~`…r4-keep4`（第一次判分）~~ | 同一产物 | — | **17/32 中断**（MSYS fork 失败） | 中断产物**不计入任何通过数**（`REQ-2.1` 428ms 只作形态旁证） | `runs/20260922T083438Z-keep-score-r4-keep4.INVALID-interrupted.{log,judges.log}` |
 
 **判读（按预注册第 ① 格）**：`REQ-2.1` **通过** 且 **种子字面量补上** ⇒ **3a+3b 生效**。
 ⚠️ **不要把结论建在"1 → 2"上**（差 1 条 < 可辨差异下限 2）：它靠 ① **成员翻面**
 （`REQ-2.1` 由挂转过，且过在 812ms 的"通过形态"）② **机制链**（3b 第 1 轮硬判报缺 → 修复 → 第 2 轮 0 条 →
 产物里字面量真的在，第三只眼 `grep` 复核）。
+
+**n=2（同产物再判一次，零 token）**：**两轮都过、成员逐条相同** → 命中预注册第 ① 格，
+`REQ-2.1` 的通过形态在**判分噪声**下复现。三条限定词别丢：
+① 只覆盖**判分噪声**（同 `r3a-1/r3a-2`），**不覆盖生成方差**（要覆盖得重跑生成，有 token）；
+② **毫秒带有漂移**：9/21 那批通过形态在 **339–478ms**，这两轮 **726–812ms**（仍是 sub-second 通过、
+与失败侧 11.1s 不同族，但**别再说"同一带内"**）；③ 通过数差 1 条 < 可辨差异下限 2。
 
 **已知瑕疵（两条，都已在 `docs/12` §十九.3 写明）**：
 `r4-keep4b` 的 `load_snapshot` 记成了"正在跑"（**持锁时的自查**，工具 bug，已修；实际启动条件是 🟢 空闲）；

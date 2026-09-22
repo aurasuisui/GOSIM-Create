@@ -22,7 +22,7 @@
 
 ## 每个块只带"自己那一片需求"
 
-keep 的全量 brief 是 15,923 字符，逐块重发会立刻顶满预算。所以按**关键词命中**把需求叶子
+全量 brief 实测 15,923 字符（最大的那份到 11.6 万），逐块重发会立刻顶满预算。所以按**关键词命中**把需求叶子
 分给块（路由路径 / 组件名 / 资源名出现在该叶子的场景文本里），每块只渲染自己那一片。
 **没命中任何块的叶子不丢**：它们一起进 `frontend-app` 与 `frontend-home`（外壳最需要知道
 "这个应用整体要干什么"）。
@@ -39,7 +39,7 @@ AUTH_HINTS = ("登录", "logout", "sign in", "signin", "sign out", "signout", "s
 RE_JSON_BLOCK = re.compile(r"\{.*\}", re.S)
 
 # 每块需求切片的**硬上限**：超过就降级成"清单式摘要"。
-# 为什么必须有（keep 实测）：首页那条路由的组件名去掉后缀是 `notes`，命中了 21 条需求
+# 为什么必须有（实测）：首页那条路由的组件名去掉后缀命中了同名的 21 条需求
 # （这是个笔记应用），于是首页块被塞到 **22,404 字符 = 93% 预算**——而我们在 81% 上丢过一个 run
 # （网关 RemoteDisconnected → RequestTooLarge → 整轮作废）。**任何一块都不许独自吃掉预算。**
 SLICE_MAX_CHARS = 6000
@@ -161,7 +161,7 @@ def plan_chunks(design: dict, tree, a11y_index, *, req_ids: list[str] | None = N
         if comp:
             toks |= {comp.lower(), re.sub(r"(Page|View|Screen)$", "", comp).lower()}
         # ⚠️ 丢掉 `/` 与过短的 token：**`"/"` 会命中几乎所有需求文本**
-        # （任何写路径的地方都有斜杠）→ 首页块被塞进 27 条需求、请求顶到 103% 预算（keep 实测）。
+        # （任何写路径的地方都有斜杠）→ 首页块被塞进 27 条需求、请求顶到 103% 预算（实测）。
         toks = {x for x in toks if len(x.strip("/")) >= 3}
         route_tokens.append((comp, path, toks))
 
@@ -237,7 +237,7 @@ def plan_chunks(design: dict, tree, a11y_index, *, req_ids: list[str] | None = N
             "files": ["backend/src/app.js"],
             "wants": ("schema", "backend/src/routes/"),
             # ⚠️ **不带需求切片**：它要的是"把哪些路由挂到哪个前缀"（在 ask 里，设计 JSON 每块都带）。
-            # 带上全部资源的需求会把请求顶到 **95% 预算**（keep 实测 22,895 字符）——
+            # 带上全部资源的需求会把请求顶到 **95% 预算**（实测 22,895 字符）——
             # 这正是"每块只带自己那一片需求"要防的事。
             "nodes": [],
             "ask": "**输出完整文件**：把这些路由模块挂到对应的 `/api/<资源>`：\n"
@@ -320,7 +320,7 @@ def plan_chunks(design: dict, tree, a11y_index, *, req_ids: list[str] | None = N
         "wants": ("authctx",),
         # ⚠️ 必须**并上**命中首页那条路由的需求叶子：首页路由（`/`）在页面循环里被跳过
         # （否则两个块会写同一个文件），所以它们的归属只能是这里——不减这一步就会**静默丢需求**
-        # （keep 实测：7 条需求没落进任何块）。
+        # （实测：7 条需求没落进任何块）。
         "nodes": list(misc) + list(node_page.get(home_comp, [])),
         "ask": f"实现首页 `{home_comp or 'HomePage'}.tsx`（路由 `/`）："
                "未登录/无数据时给出**可点击的入口链接**——判据会按 `href` 点击进入，"

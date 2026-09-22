@@ -1,9 +1,9 @@
 {
-  "run_id": "20260922T090406Z-keep-score-r4-keep4b.judges",
-  "arm_id": "r4-keep4b",
+  "run_id": "20260922T104719Z-keep-score-r4-keep4-n2.judges",
+  "arm_id": "r4-keep4-n2",
   "round": 1,
-  "change_description": "预注册复跑（第二十一轮审核十条收口 + 3b 升为判死之后）：4 条子集 {REQ-1.1,REQ-2.1,REQ-2.2,REQ-6.2}、官方档 deepseek-chat、闭环 ON。产物由 b3c497e 生成（%TEMP%/r4-keep4/app），基线是 e1b-keep4（1/32，只过子集外的 REQ-2.7.3）。",
-  "captured_at": "2026-09-22T09:33:57Z",
+  "change_description": "n=2（预注册 %TEMP%/r4-keep4/PREREG-n2.md）：同一份产物（%TEMP%/r4-keep4/app，与 r4-keep4b 逐字节相同）再判一次，测 REQ-2.1 的通过形态在判分噪声下是否复现。零 token（不重新生成）。",
+  "captured_at": "2026-09-22T11:16:42Z",
   "app": "keep",
   "port": 3301,
   "arc_test_date": "2026-09-20",
@@ -12,11 +12,21 @@
   "ci_env": null,
   "retries_effective": 0,
   "load_snapshot": "status=free runners=0 port=free listeners=0",
+  "snapshot_note": "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己",
   "pipeline": {
-    "git_commit": "b3c497e12493079d93104ff9887a6ddd547c559c",
+    "git_commit": "d96b6109cf8de1ce776031890948e8f4f03b6762",
     "git_dirty": true,
     "git_branch": "main",
-    "attests": "record-time（事后补注：产物出生处未盖指纹 → 本值 attest 的是写记录那一刻；代码侧干净的判据见 provenance_note）"
+    "attests": "record-time"
+  },
+  "provenance_source": "record-time",
+  "pipeline_at_record_time": null,
+  "artifact_fingerprint": {
+    "git_commit": "b3c497e12493079d93104ff9887a6ddd547c559c",
+    "code_clean": true,
+    "basis": "post-hoc 补注：**与 r4-keep4b 是同一份产物**（本次判分未改产物一个字节、未重新生成）。产物由 b3c497e 生成（早于「产物出生处指纹」功能）；记录里的 git_commit=d96b610 是**写记录时**的 HEAD（期间另有两个会话提交），不是产出它的代码。",
+    "stamped_at_product": false,
+    "hint": "要判「产出它的代码干不干净」，用 git log --oneline <commit>..HEAD -- pipeline/ 看有没有改动"
   },
   "bench_repo": {
     "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
@@ -24,7 +34,7 @@
     "git_branch": "main"
   },
   "requirements_sha256": "20fd6a60bd906dfb409deff5d4a3c2da498de5aa263745279349f49458134f76",
-  "log_path": "runs/20260922T090406Z-keep-score-r4-keep4b.judges.log",
+  "log_path": "runs/20260922T104719Z-keep-score-r4-keep4-n2.judges.log",
   "tests_total": 32,
   "tests_passed": 2,
   "tests_failed": 30,
@@ -276,11 +286,11 @@
   "per_test_passed": [
     {
       "test_id": "REQ-2.1.spec.ts:7",
-      "title": "REQ-2.1: Note Listing (812ms)"
+      "title": "REQ-2.1: Note Listing (726ms)"
     },
     {
       "test_id": "REQ-2.7.3.spec.ts:7",
-      "title": "REQ-2.7.3: Default label (736ms)"
+      "title": "REQ-2.7.3: Default label (448ms)"
     }
   ],
   "log_total_running": 32,
@@ -289,14 +299,6 @@
   },
   "retries_observed": 0,
   "has_summary": true,
-  "load_snapshot_recorded_selfheld": "status=🟢 正在跑，不要动 —— 禁止一切 bench 子命令（含 reset / stop） port3301_listeners=0",
-  "snapshot_note": "本字段是**事后校正**，原值保留在 load_snapshot_recorded_selfheld。原值被记为\"正在跑\"，是因为当时 score_app.sh 在**拿锁之后**才采快照——那是它自己，不是外部世界（工具 bug，已于同日修复：改成外层拿锁前用 bench.sh verdict 采）。校正依据：本轮启动时 ./eval/bench.sh status 打印 🟢 空闲（端口空闲、无 runner），且 runs/.inflight.log 在该窗口内没有任何其他会话的认领 → 静置条件成立。",
-  "provenance_note": "产物来自 b3c497e（本记录落盘时工作区已脏，但脏的只有文档/记录）：git log --oneline b3c497e..HEAD -- pipeline/ 为空 → 产出这份产物的代码与 b3c497e 逐字相同。本记录生成于\"产物出生处指纹\"功能之前，故 pipeline 块是 record-time 采的、attests 字段缺失；此后每份产物都会在 .arc/provenance.json 自带指纹。",
-  "provenance_source": "record-time（事后补注：该产物早于\"产物出生处指纹\"功能）",
-  "artifact_fingerprint": {
-    "git_commit": "b3c497e12493079d93104ff9887a6ddd547c559c",
-    "code_clean": true,
-    "basis": "post-hoc 补注：该产物早于「产物出生处指纹」功能（.arc/provenance.json 是同日之后才有的）。判定依据 = git log --oneline b3c497e..HEAD -- pipeline/ 为空 → 产出它的代码与 b3c497e 逐字相同；记录里的 pipeline.git_dirty=true 脏的是文档/记录，不是代码。",
-    "stamped_at_product": false
-  }
+  "provenance_note": "同一产物的第二次判分（n=2）。产物来源同 r4-keep4b：b3c497e；本次未生成、未修改产物一个字节 → \"同一产物\"这条由 %TEMP%/r4-keep4/PREREG-n2.md 与 runs/README 的复跑小节共同证明。",
+  "notes": "【n=2 的三条限定词，必须连读数一起读】① 只覆盖**判分噪声**（同 r3a-1/r3a-2 的重复判分），**不覆盖生成方差**——要覆盖生成方差必须重跑生成（有 token）。② **毫秒带有漂移**：9/21 那批的通过形态是 339–478ms，本记录与上一轮是 726ms / 812ms；两者仍同属\"sub-second 通过\"、与失败侧 11.1s 超时不同族，但**不要再说\"落在同一带内\"**。③ 通过数差 1 条（1→2）**低于本项目的可辨差异下限 2**（AGENTS 硬规则 5）→ 结论只建立在「成员翻面 + 机制链」上，不建立在条数上。"
 }

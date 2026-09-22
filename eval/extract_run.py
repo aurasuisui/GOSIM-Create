@@ -196,6 +196,76 @@ def sha256_of(path: Path) -> str | None:
     return h.hexdigest()
 
 
+def read_provenance(app_dir) -> dict | None:
+    """读**产物出生处**的指纹（`<app>/.arc/provenance.json`，由 `pipeline/provenance.py` 写）。
+
+    为什么要优先读它（第二十三轮审核 §三 的根因）：`git_info()` 原来是在**写记录时**现采的，
+    而记录通常在判分跑完之后（约一小时）才落盘 → 它 attest 的是"那一刻的工作区"，
+    不是"产出这份产物时代码长什么样"。实测过的自相矛盾：产物干净、记录却 `git_dirty=true`。
+    """
+    if not app_dir:
+        return None
+    p = Path(app_dir) / ".arc" / "provenance.json"
+    if not p.is_file():
+        return None
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _pipeline_block(prov: dict | None, root: Path) -> dict:
+    """记录里的 `pipeline` 块：产物出生处的指纹优先，否则退回现采。
+
+    读不到时**不静默**：`provenance_source` 会写成 `record-time`，
+    并且这里把"这个值 attest 的是写记录那一刻"显式留在同一个块里（`attests` 字段）。
+    """
+    if prov:
+        return {
+            "git_commit": prov.get("git_commit"),
+            "git_dirty": prov.get("git_dirty"),
+            "git_branch": prov.get("git_branch"),
+            "attests": "product-birth",              # 这个值说的是"产出它的代码"
+            "captured_at_product": prov.get("written_at"),
+            "app_hint": prov.get("app_hint"),
+            "req_ids": prov.get("req_ids"),
+            "generate_mode": prov.get("generate_mode"),
+            "stage_seconds": prov.get("stage_seconds"),
+            # 成本侧两个数**分开**（第二十四轮审核 §三 A）：闭环占全程 51–58%，
+            # 只有 `tokens_total` 才是 pass/CNY 的分母。
+            "tokens_total": prov.get("tokens_total"),
+            "tokens_generation_only": prov.get("tokens_generation_only"),
+            "verify_ran": prov.get("verify_ran"),
+        }
+    got = git_info(root)
+    got["attests"] = "record-time"                   # ⚠️ 不是产物出生时的工作区
+    return got
+
+
+def _artifact_fingerprint(prov: dict | None, block: dict, root: Path) -> dict:
+    """**机器可读**的「产出这份产物的代码干不干净」。
+
+    为什么单列一个字段：`pipeline.git_dirty` 的语义随来源变化（产物出生处 vs 写记录时），
+    而筛轮次的人/脚本需要一句能直接判的话。两者都写清：
+
+        stamped_at_product = True  → 由产物自带的 `.arc/provenance.json` 给出（首选）
+        stamped_at_product = False → 是**写记录那一刻**的现采（attest 不了产物）
+
+    `code_clean` 说的是**产出产物的那份代码**；`basis` 写清它是怎么来的。
+    """
+    commit = (prov or {}).get("git_commit") or block.get("git_commit")
+    if prov:
+        dirty = prov.get("git_dirty")
+        return {"git_commit": commit, "code_clean": (not dirty) if dirty is not None else None,
+                "basis": "product-birth stamp（.arc/provenance.json）", "stamped_at_product": True}
+    dirty = block.get("git_dirty")
+    return {"git_commit": commit, "code_clean": (not dirty) if dirty is not None else None,
+            "basis": "record-time capture（attests 的是写记录那一刻的工作区，不是产物出生时）",
+            "stamped_at_product": False,
+            "hint": "要判「产出它的代码干不干净」，用 git log --oneline <commit>..HEAD -- pipeline/ 看有没有改动"}
+
+
 # ---------- 主流程 ----------
 
 def main() -> int:
@@ -209,7 +279,11 @@ def main() -> int:
     ap.add_argument("--visual-model", default=None)
     ap.add_argument("--change", default=None, help="一句话、可证伪的改动描述")
     ap.add_argument("--load-snapshot", default=None,
-                    help="本轮开始前采的环境快照（status 结论行 / runner 数 / 端口）")
+                    help="本轮开始前采的环境快照（**机器可读形式**：status=free runners=0 port=free listeners=0）")
+    ap.add_argument("--snapshot-note", default=None,
+                    help="快照的补充说明（写进记录本身：它是什么时候、在什么状态下采的）")
+    ap.add_argument("--app-dir", default=None,
+                    help="被打分应用的目录——用来读**产物出生处**的指纹（.arc/provenance.json）")
     ap.add_argument("--ci", default=None,
                     help="CI 环境变量的值——它决定 playwright 的 retries（CI 有值 → retries=1）")
     ap.add_argument("--json-out", default=None)
@@ -227,6 +301,7 @@ def main() -> int:
 
     bench_dir = ROOT / "repos" / "arc-bench"
     req_yaml = bench_dir / "arc-bench" / "webapp" / args.app / "requirements" / "requirements.yaml"
+    prov = read_provenance(args.app_dir)
 
     record = {
         "run_id": logpath.stem,
@@ -251,8 +326,15 @@ def main() -> int:
         "ci_env": args.ci,
         "retries_effective": 1 if (args.ci and args.ci.strip().lower() not in ("0", "false", "")) else 0,
         "load_snapshot": args.load_snapshot,
+        "snapshot_note": args.snapshot_note,
 
-        "pipeline": git_info(ROOT),
+        # ---- 指纹：**优先产物出生处**，读不到才退回"写记录时现采" ----
+        # 记录里必须能看出用的是哪一个（`provenance_source`），否则又变成"记录不能自证"。
+        "pipeline": _pipeline_block(prov, ROOT),
+        "provenance_source": "stage-artifact" if prov else "record-time",
+        "pipeline_at_record_time": git_info(ROOT) if prov else None,
+        # 机器可读的"产出它的代码干不干净"（筛轮次的人/脚本读这一句，不必解读上面对比两个来源）
+        "artifact_fingerprint": _artifact_fingerprint(prov, _pipeline_block(prov, ROOT), ROOT),
         "bench_repo": git_info(bench_dir),
         "requirements_sha256": sha256_of(req_yaml),
 
@@ -274,7 +356,14 @@ def main() -> int:
           f" (total {parsed['tests_total']})")
     print(f"  pass_rate  : {rate if rate is not None else '—'}")
     print(f"  失败分类   : {parsed['failure_class_counts'] or '—'}")
-    print(f"  RunRecord  → {out.relative_to(ROOT)}")
+    _c = str((record.get("pipeline") or {}).get("git_commit") or "?")
+    print(f"  指纹来源   : {record['provenance_source']}"
+          f"（commit={_c[:8]}，attests={(record.get('pipeline') or {}).get('attests')}）")
+    try:
+        shown = out.relative_to(ROOT)
+    except ValueError:            # 写到工作区外的临时文件时（自检/对比用）不该崩
+        shown = out
+    print(f"  RunRecord  → {shown}")
     if "WARNING" in record:
         print(f"  ⚠️  {record['WARNING']}")
     return 0

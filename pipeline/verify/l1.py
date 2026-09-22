@@ -446,7 +446,7 @@ def check_aria_name_sources(output_dir: Path) -> list[dict]:
 def check_express5_routes(output_dir: Path) -> list[dict]:
     """Express **5** 不接受裸 `'*'` 路径 —— 静态可判，而且崩在启动（= 0 分）。
 
-    实测（2026-09-22 扩子集后的 e1-keep4）：模型把模板里那条**正确的** Express-5 写法
+    实测（2026-09-22 扩子集那轮）：模型把模板里那条**正确的** Express-5 写法
     模板那条正确的 Express-5 正则写法换成了 Express 4 时代的 app.get('*', ...) ->
     `PathError: Missing parameter name at index 1: *`（path-to-regexp v8）-> **后端起不来** ->
     冒烟失败 -> 那条产物 0/32。
@@ -491,10 +491,10 @@ def check_seed_literals(output_dir: Path, seeds) -> list[dict]:
     **驱动修复**，且经 3a 的 `priority 0`（契约集）**不许被 `max_files` 截掉**。
     两条前置都已满足：① 抽取器滤掉"搜索关键词"与 <3 字符的串
     （`contains the keyword "st"` → `'st'` 那种**永不失败**的垃圾字面量）；
-    ② 已进 `eval/regress_l1.sh` 的语料表（`m2-keep2 0 / e2-keep2 0 / e1b-keep4 2 / r3b-off 2`）。
+    ② 已进 `eval/regress_l1.sh` 的语料表（四份历史产物：0 / 0 / 2 / 2）。
 
     **作用域**：只对**本子集**声明的种子判死（调用方按 `req_ids` 限定）——
-    不分子集时**又宽又松**（`m2-keep2` 会被报缺 20 条，而那 20 条**全部**属于子集外的需求）。
+    不分子集时**又宽又松**（某份产物会被报缺 20 条，而那 20 条**全部**属于子集外的需求）。
     """
     findings: list[dict] = []
     blob_parts = []

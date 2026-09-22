@@ -4,15 +4,16 @@
 
 2026-09-20 实测：**六个赛题里有 2 个的需求文件不是合法 YAML。**
 
-    bookstack  第 603 行、第 645 行 —— mapping values are not allowed here
-    keep       第 445 行           —— mapping values are not allowed here
+    样本 A  第 603 行、第 645 行 —— mapping values are not allowed here
+    （**样本名 ↔ 行号的对应表**在 `docs/06-需求契约实测.md` §十一；样本名属题目特定字符串）
+    样本 B  第 445 行           —— mapping values are not allowed here
 
 三处都是同一种毛病：**一个键比它的同级兄弟多缩进 4 格。**
 
-    bookstack:603
+    样本 A:603
         602|              - keyword: GIVEN        ← dash 在 14，键应在 16
         603|                    content: ...       ← 实际在 20，多 4 格
-    keep:445
+    样本 B:445
         444|        type: ATOMIC                   ← 同级键在 8
         445|            description: '...'          ← 实际在 12，多 4 格
 
