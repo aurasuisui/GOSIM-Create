@@ -170,8 +170,15 @@ def extract_prose_targets(text: str) -> list[tuple[str, str, str]]:
 
     # ③ 纯 role 结构（侧栏/导航/编辑器）—— 判据可能只要 role 存在（keep 的 complementary ×7）
     for noun, role in PURE_ROLE_NOUNS.items():
-        if re.search(rf"\b{re.escape(noun)}\b", text, re.I):
-            add(role, "", "prose_pure_role")
+        m = re.search(rf"\b{re.escape(noun)}\b", text, re.I)
+        if not m:
+            continue
+        add(role, "", "prose_pure_role")
+        # 多词结构名（`note editor`）：判据常按 **名字** 找它（`dialog[Note editor]`×4 in keep），
+        # 而短语在需求文本里**逐字存在** → 同时产出一条**带名字**的目标。
+        # 单词的结构名（`sidebar`）不加名字：那是通用名词，强行命名反而会误导生成。
+        if " " in noun:
+            add(role, m.group(0), "prose_structural_name")
 
     return out
 

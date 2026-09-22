@@ -50,6 +50,41 @@ def _matches(role: str, name: str, target: tuple[str, str]) -> bool:
     return bool(name) and (name.lower() in tname.lower() or tname.lower() in name.lower())
 
 
+def requirement_corpus(app_dir: pathlib.Path) -> str:
+    """把一个 app 的**需求文本**拼成一整份（.yaml + .md 都要）。"""
+    parts = []
+    req_dir = app_dir / "requirements"
+    for pat in ("*.yaml", "*.yml", "*.md", "**/*.md"):
+        for f in req_dir.glob(pat):
+            if f.is_file():
+                parts.append(f.read_text(encoding="utf-8", errors="replace"))
+    return "\n".join(parts)
+
+
+def names_not_in_text(app_dir: pathlib.Path, a11y) -> list[tuple[str, str]]:
+    """**靶子里哪些名字在需求文本里一次都查不到**（输出 名字 → 首个命中行号或"未命中"）。
+
+    为什么这条必须由机器输出（`PLAN.md` §7「把三类断言变成机器的测量」）：
+    `AGENTS.md` 硬规则 17 立了"说某名字不在文本里之前必须按标准动作查"，**举例就是
+    `Toggle sidebar` 本身**，而同一个错判**仍然发生了三次**（我第三次是用
+    `grep … | head -12` 把命中行截掉了就下了结论）。**纪律防不住 → 做成机器输出。**
+    从此"X 不在需求文本里"这句话只能引用这条输出。
+    """
+    corpus = requirement_corpus(app_dir)
+    low = corpus.lower()
+    lines = corpus.splitlines()
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for e in a11y.entries:
+        nm = (e.name or "").strip()
+        if not nm or nm.lower() in seen:
+            continue
+        seen.add(nm.lower())
+        hit = next((i + 1 for i, ln in enumerate(lines) if nm.lower() in ln.lower()), None)
+        out.append((nm, f"line {hit}（{app_dir.name}/requirements）" if hit else "**未命中**"))
+    return out
+
+
 def report(app: str, n: int) -> None:
     app_dir = BENCH / app
     tree, _ = load_requirement_tree(app_dir)
@@ -76,6 +111,19 @@ def report(app: str, n: int) -> None:
         print(f"  未覆盖（{len(missed)}）：")
         for role, name in missed[:10]:
             print(f"    - role={role!r} name={name!r}")
+
+    # === 对**需求文本**的测量：哪些靶子名字一次都查不到（机器输出，不靠肉眼）===
+    allnames = names_not_in_text(app_dir, a11y)
+    missing = [(nm, w) for nm, w in allnames if w == "**未命中**"]
+    print(f"\n--- 靶子名字 vs 需求文本（{len(allnames)} 个去重名）---")
+    print(f"  **在需求文本里一次都查不到的名字：{len(missing)} 个**"
+          "（这句话以后只能引用这条输出 —— AGENTS.md 硬规则 17）")
+    for nm, _w in missing[:12]:
+        print(f"    - {nm!r}  ← 未命中")
+    for probe in ("Toggle sidebar", "Note editor", "sidebar", "List view"):
+        where = next((w for nm, w in allnames if nm.lower() == probe.lower()), None)
+        if where:
+            print(f"  · 抽查 {probe!r}: {where}")
 
     print(f"\n--- 精度样本（前 {n} 条散文靶子，人工判「像不像可交互对象」）---")
     for i, e in enumerate(prose[:n], 1):

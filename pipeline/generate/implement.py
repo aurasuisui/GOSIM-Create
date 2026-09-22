@@ -90,11 +90,19 @@ STACK_CONTRACT = """### Main Stack
   （写 `init_db.js` 会被直接拒绝）。
 * Routes live under `/api/...`. `backend/src/app.js` already has the mount points marked with
   comments (`// route modules imports` and `// register routes`).
+* ⚠️ **Express 5**：不接受裸 `'*'` 路径（Express 4 的 `app.get('*', ...)` 会抛
+  `PathError: Missing parameter name at index 1: *` → **后端起不来**）。
+  SPA fallback **照抄模板原样的正则写法**，或用具名通配 `/*splat`。
 * Never return password hashes or raw credentials in any API response."""
 
 
 # `design` 会**每一块都重发**，所以给它一个上限（实测：不限时把请求顶到 19,410 字符 → 整个 run 作废）
 DESIGN_IN_PROMPT_MAX = int(os.environ.get("PIPELINE_DESIGN_MAX_CHARS") or 4000)
+
+# 单次请求的**安全线**：超过它就在拼请求时按弹性优先级压体积（见 `_chunk_messages`）。
+# 取 `MAX_REQUEST_CHARS` 的 70%——低于实测会触发网关断连的那一档（80% 实测断连）。
+from .llm import MAX_REQUEST_CHARS            # noqa: E402  （放在常量后，避免循环 import 顾虑）
+REQUEST_SAFE_CHARS = int(MAX_REQUEST_CHARS * 0.7)
 
 # ---- token 预算与到额降级（`PLAN.md` §4.3：**不是"尽力跑完"，是"到点就收"**）----
 # 为什么必须有：平台要求同一份提交跑完 6 个任务才算聚合分，**一个中途死掉的 run 产出为零**；
@@ -102,9 +110,17 @@ DESIGN_IN_PROMPT_MAX = int(os.environ.get("PIPELINE_DESIGN_MAX_CHARS") or 4000)
 # 到额后**不再开新块，但要把已完成的部分收尾**（schema 注入 + 校验 + 报告），
 # 产出一个"能构建、能起来、已写部分可用"的应用——§4.3 的地板："至少有一部分功能可用"。
 TOKEN_BUDGET_DEFAULT = int(os.environ.get("PIPELINE_TOKEN_BUDGET") or 300_000)
-# 按 app 的预算（保守档；quickstart 单需求 20.7 万是锚点）。要改就改这里，别临场判断。
-APP_TOKEN_BUDGET = {"keep": 250_000, "bookstack": 250_000, "stackoverflow": 300_000,
-                    "prestashop": 320_000, "12306": 320_000, "ctrip": 320_000}
+# 按 app 的预算。**为什么全量 keep 必须调高**（`PLAN.md` §7「R2 的前置」）：
+# 全量 keep 是 **13 块**（6 路由 / 12 端点 / 4 表），而 keep 原设 25 万会**触发降级**
+# → 读的是降级产物的分 = 白跑一轮。
+#
+# 锚点用**实测的每块成本**外推（不是拍的）：
+#   · 官方档 keep 子集：36,218 token / 5 个实现块 = **7,243/块** → 13 块 ≈ 9.4 万
+#   · 比赛模型 quickstart：207,533 / 8 块 = **25,942/块** → 13 块 ≈ 33.7 万
+#     （flash 的 reasoning 占输出 90%+，所以同块它的成本是官方档的 3.6 倍）
+# → 预算按**比赛模型**那一列放大到 2 倍左右，留出"设计啰嗦 / 闭环多跑一轮"的余量。
+APP_TOKEN_BUDGET = {"keep": 700_000, "bookstack": 700_000, "stackoverflow": 700_000,
+                    "prestashop": 900_000, "12306": 900_000, "ctrip": 900_000}
 
 
 def token_budget(app_hint: str | None = None) -> int:
@@ -261,31 +277,59 @@ def _clip(text: str, limit: int, what: str, *, log=print) -> str:
 
 def _chunk_messages(chunk: dict, design: str, skeleton: str,
                     written: list[str], side_extra: str, *, log=print) -> list[dict]:
-    """拼这一块的请求。
+    """拼这一块的请求。**并把请求压到安全线以内**（不靠"太大就抛异常"）。
 
     **需求部分是这一块的切片**（`chunk['brief_slice']`），不是整份 brief——
     keep 的全量 brief 是 15,923 字符，逐块重发会立刻顶满预算（见 `chunkplan.py`）。
     schema 块的切片为空是**故意的**：表清单在它的 ask 里，而设计 JSON 每块都会带上。
+
+    ⚠️ **为什么要在这里压体积**（2026-09-22 R2 实测的教训）：全量 keep 的 13 块里，
+    后面的页面块请求涨到 **19,267 字符（预算的 80%）** → 网关断连 → 我立的
+    `RequestTooLarge`（0.8× 阈值）**把整个 run 中止**，产物停在 10/13 块
+    （缺 App.tsx 外壳、没跑闭环）→ **烧掉的 token 换不回任何可判分的产物**，
+    而"能跑完"是计分链条的第一环（§4.3：地板是"已完成 ∧ 有一部分功能可用"）。
+    → 所以改成**在拼请求时就按弹性优先级把体积压到安全线**（设计→上游原文→骨架→切片），
+      失败才抛（现在的抛是最后手段，不是首选）。
     """
     written_block = "\n".join(f"  - {w}" for w in written) if written else "  （还没有）"
-    parts = [STACK_CONTRACT, ""]
-    parts += ["## 设计（已定稿，照它实现）", "", _clip(design, DESIGN_IN_PROMPT_MAX, "design", log=log), ""]
-    # 骨架 brief（模板文件原文）只有"要接线"的块才需要；纯新增文件的块带上它是白占预算
-    if chunk.get("needs_skeleton"):
-        parts += ["## 现有骨架", "", skeleton, ""]
-    if side_extra:
-        parts += [side_extra, ""]
     brief_slice = chunk.get("brief_slice") or ""
-    if brief_slice:
-        parts += ["## 需求（本块相关的部分）", "", brief_slice, ""]
-    parts += ["## 本次任务（只做这些文件，不要越界）", "",
-              "必须要输出的文件：", "\n".join("  - " + f for f in chunk["files"]), "",
-              "已经写好的文件（可 import / 遵循它们的约定）：", written_block, "",
-              chunk["ask"], "",
-              "## 输出格式（严格遵守）", "",
-              "每个文件一段，路径从项目根算起：", "",
-              f"===FILE: {chunk['files'][0]}===", "```js", "<完整文件内容>", "```", "",
-              "不要输出任何其他文字。"]
+    # 弹性优先级（越靠前越先压）：设计摘要 → 上游原文 → 骨架 → 需求切片。
+    # 默认档 = 现状（4,000 / 7,000 / 全部 / 6,000），只在超安全线时才逐档收紧。
+    LEVELS = [(4000, 7000, None, 6000), (3000, 4000, 2600, 4000),
+              (2200, 2500, 1600, 2600), (1500, 1200, 900, 1600)]
+
+    def build(cap_design: int, cap_extra: int, cap_skel: int | None, cap_slice: int) -> list[str]:
+        parts = [STACK_CONTRACT, ""]
+        parts += ["## 设计（已定稿，照它实现）", "", _clip(design, cap_design, "design", log=log), ""]
+        # 骨架 brief（模板文件原文）只有"要接线"的块才需要；纯新增文件的块带上它是白占预算
+        if chunk.get("needs_skeleton") and cap_skel:
+            parts += ["## 现有骨架", "", _clip(skeleton, cap_skel, "skeleton", log=log), ""]
+        if side_extra and cap_extra:
+            parts += [_clip(side_extra, cap_extra, "上游原文", log=log), ""]
+        if brief_slice and cap_slice:
+            parts += ["## 需求（本块相关的部分）", "",
+                      _clip(brief_slice, cap_slice, "需求切片", log=log), ""]
+        parts += ["## 本次任务（只做这些文件，不要越界）", "",
+                  "必须要输出的文件：", "\n".join("  - " + f for f in chunk["files"]), "",
+                  "已经写好的文件（可 import / 遵循它们的约定）：", written_block, "",
+                  chunk["ask"], "",
+                  "## 输出格式（严格遵守）", "",
+                  "每个文件一段，路径从项目根算起：", "",
+                  f"===FILE: {chunk['files'][0]}===", "```js", "<完整文件内容>", "```", "",
+                  "不要输出任何其他文字。"]
+        return parts
+
+    parts = build(*LEVELS[0])
+    size = sum(len(p) for p in parts)
+    if size > REQUEST_SAFE_CHARS:
+        for lv, caps in enumerate(LEVELS[1:], start=2):
+            parts = build(*caps)
+            new_size = sum(len(p) for p in parts)
+            log(f"        ⚠️  请求 {size:,} 字符超安全线 {REQUEST_SAFE_CHARS:,}"
+                f" → 压到第 {lv} 档 = {new_size:,} 字符")
+            size = new_size
+            if size <= REQUEST_SAFE_CHARS:
+                break
     return [
         {"role": "system", "content": chunk["role"] + "只输出文件，不要解释。严格遵守给出的文件格式与边界。"},
         {"role": "user", "content": "\n".join(parts)},
@@ -408,6 +452,7 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
     written_by_chunk: dict[str, list[str]] = {}
     budget = token_budget(app_hint)
     skipped: list[str] = []
+    failed: list[dict] = []      # 单块失败就地降级：跳过但记下来
     log(f"  token 预算 {budget:,}（到额就收尾，不硬跑；`PIPELINE_TOKEN_BUDGET` 可覆盖）")
 
     # core 块（schema / 资源 / app.js / 外壳）**必须留够**：它们决定"应用能不能起来"。
@@ -436,16 +481,31 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
 
         log(f"  [{i}/{len(chunks)}] {chunk['name']}：{'、'.join(chunk['files'])}")
         extra = _side_extra(chunk, output_dir, written, log=log)
-        text = chat(cfg, _chunk_messages(chunk, design, skeleton, written, extra, log=log),
-                    stage=f"implement-{chunk['name']}", log=log)
-        files = parse_files(text)
-        if not files:
-            raise GenerationError(f"{chunk['name']} 没有产出任何文件（回复里没有 ===FILE: 标记）")
-        got = write_files(output_dir, files, log=log)
+        # ⚠️ **单块失败 = 就地降级**（`PLAN.md` §4.3 的 2b，2026-09-22 升格为原则）：
+        # 抛异常只留给真正不可恢复的情况——**一次块级异常不许把已经花掉的钱作废**。
+        # 两次同型损失换来的这条：9/21 run d/e（判据侧失败丢掉生成）、9/22 R2
+        # （生成侧中止 → 10/13 块的花费全部作废，产物还不可判分）。
+        # 跳过一块的后果是"这个页面/资源没做"，而应用**仍然是可构建可运行的**——
+        # 外壳块的 ask 由 `_sync_shell_ask` 按"真的写出来了哪些页面"重建，所以不会 import 不存在的文件。
+        try:
+            text = chat(cfg, _chunk_messages(chunk, design, skeleton, written, extra, log=log),
+                        stage=f"implement-{chunk['name']}", log=log)
+            files = parse_files(text)
+            if not files:
+                raise GenerationError(f"{chunk['name']} 没有产出任何文件（回复里没有 ===FILE: 标记）")
+            got = write_files(output_dir, files, log=log)
+        except Exception as exc:  # noqa: BLE001 —— 就地降级，别让整轮花钱作废
+            failed.append({"chunk": chunk["name"], "error": f"{type(exc).__name__}: {exc}"[:200]})
+            log(f"  ⚠️  [{i}/{len(chunks)}] {chunk['name']} 失败，**跳过该块继续**"
+                f"（就地降级）：{type(exc).__name__}: {str(exc)[:120]}")
+            continue
         written.extend(got)
         written_by_chunk[chunk["name"]] = got
         log(f"        -> {', '.join(got)}")
 
+    if failed:
+        log(f"  ⚠️  {len(failed)} 个块**失败后跳过**（就地降级）："
+            + "、".join(f["chunk"] for f in failed) + "——应用仍会被收尾成可构建可运行的形态")
     if skipped:
         log(f"  ⚠️  到额降级：跳过 {len(skipped)} 个块（{', '.join(skipped)}）"
             "——应用仍会被收尾成可构建可运行的形态")
@@ -462,7 +522,8 @@ def generate_app(tree, a11y_index, output_dir: Path, cfg: LLMConfig, *,
     return {"files": written, "files_by_chunk": written_by_chunk,
             "schema_injection": injected,
             "token_budget": budget, "chunks_skipped": skipped,
-            "degraded": bool(skipped),
+            "chunks_failed": failed,
+            "degraded": bool(skipped or failed),
             "usage": usage, "calls": list(cfg.calls)}
 
 

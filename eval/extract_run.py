@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -176,7 +177,11 @@ def main() -> int:
 
         "app": args.app,
         "port": args.port,
-        "arc_test_date": None,          # 由调用方在固定后填写
+        # 测试是日期相关的，这个字段必须记下来（否则两轮读数不可比）。
+        # 原来写死 `None` + 注释"由调用方填写"，而**没有任何调用方填**——
+        # r3a-1 的记录里就是 None，而同一轮的脚本日志明明打了 ARC_TEST_DATE=2026-09-20。
+        # score_app.sh 已经 export 了它 → 直接从环境读，别再指望别人手填。
+        "arc_test_date": os.environ.get("ARC_TEST_DATE") or None,
         "model": args.model,
         "visual_model": args.visual_model,
 

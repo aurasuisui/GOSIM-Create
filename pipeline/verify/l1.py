@@ -443,6 +443,41 @@ def check_aria_name_sources(output_dir: Path) -> list[dict]:
     return findings
 
 
+def check_express5_routes(output_dir: Path) -> list[dict]:
+    """Express **5** 不接受裸 `'*'` 路径 —— 静态可判，而且崩在启动（= 0 分）。
+
+    实测（2026-09-22 扩子集后的 e1-keep4）：模型把模板里那条**正确的** Express-5 写法
+    模板那条正确的 Express-5 正则写法换成了 Express 4 时代的 app.get('*', ...) ->
+    `PathError: Missing parameter name at index 1: *`（path-to-regexp v8）-> **后端起不来** ->
+    冒烟失败 -> 那条产物 0/32。
+
+    为什么必须由机器判（能用零 token 静态判的不许用生成去验）：Express 4 的 `'*'`
+    是模型语料里最常见的写法，而模板是 Express 5 —— 这个错会**每次都犯**，
+    而每次犯都等于一整轮生成白烧。
+    """
+    findings: list[dict] = []
+    backend = output_dir / "backend/src"
+    if not backend.is_dir():
+        return findings
+    re_bare_star = re.compile(
+        r"""\.(?:get|post|put|patch|delete|all|use)\s*\(\s*['"]\*['"]""", re.I)
+    for f in sorted(backend.rglob("*.js")):
+        text = strip_js_comments(f.read_text(encoding="utf-8", errors="replace"))
+        m = re_bare_star.search(text)
+        if not m:
+            continue
+        line = text[:m.start()].count(chr(10)) + 1
+        rel = f.relative_to(output_dir).as_posix()
+        findings.append({
+            "kind": "express5-bare-star", "file": rel,
+            "detail": f"第 {line} 行用了裸 '*' 路径作路由 —— **Express 5（本模板）不接受**："
+                      "path-to-regexp v8 抛 `PathError: Missing parameter name at index 1: *` "
+                      "-> **后端起不来**（不是功能没做对，是整个应用 0 分）",
+            "hint": "SPA fallback 用模板原样的正则写法，或 Express 5 的具名通配 `/*splat`",
+        })
+    return findings
+
+
 def check_scripts(output_dir: Path) -> list[dict]:
     """平台要求的 npm scripts 必须在（C4/C5）。"""
     findings: list[dict] = []
@@ -479,6 +514,7 @@ def run_l1(output_dir: Path, *, requirement_brief: str, required_names: list[str
         ("syntax_balance", lambda: check_syntax_balance(output_dir)),
         ("aria_name_sources", lambda: check_aria_name_sources(output_dir)),
         ("scaffold", lambda: check_scaffold_intact(output_dir, template_dir)),
+        ("express5_routes", lambda: check_express5_routes(output_dir)),
         ("scripts", lambda: check_scripts(output_dir)),
     ]
     per_check: dict[str, int] = {}
