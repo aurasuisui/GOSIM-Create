@@ -1,0 +1,774 @@
+{
+  "run_id": "20260923T022226Z-prestashop-score-ps1.judges",
+  "arm_id": "ps1",
+  "round": 1,
+  "change_description": "阶梯④：prestashop 第一轮（子集 {REQ-2.1}，官方档 deepseek-chat，闭环 ON）。子集按 §7 ② 的规则定：helper 最少的候选里，取「未覆盖」栏**为空**的那个（4 个靶子 carousel / popular products / newsletter / footer 全部被**它自己的需求文本**点名）→ **本轮没有注入任何硬名**（与 bookstack/stackoverflow 不同）。产物 = %TEMP%/ps1/app（自带出生处指纹）。",
+  "captured_at": "2026-09-23T03:56:12Z",
+  "app": "prestashop",
+  "port": 3301,
+  "arc_test_date": "2026-09-20",
+  "model": "unknown",
+  "visual_model": null,
+  "ci_env": null,
+  "retries_effective": 0,
+  "load_snapshot": "status=free runners=0 port=free listeners=0",
+  "snapshot_note": "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己",
+  "pipeline": {
+    "git_commit": "c12723c800a8195410f311a3f7fbae8e3568d1fa",
+    "git_dirty": true,
+    "git_branch": "main",
+    "attests": "product-birth",
+    "captured_at_product": "2026-09-23T01:12:59Z",
+    "app_hint": "prestashop",
+    "req_ids": [
+      "REQ-2.1"
+    ],
+    "generate_mode": "1",
+    "stage_seconds": 18.8,
+    "tokens_total": 22356,
+    "tokens_generation_only": 18988,
+    "verify_ran": true,
+    "pipeline_dirty": false
+  },
+  "provenance_source": "stage-artifact",
+  "pipeline_at_record_time": {
+    "git_commit": "a04b2795b768cd1bb74a39c2482bd930617dfa79",
+    "git_dirty": true,
+    "git_branch": "main"
+  },
+  "artifact_fingerprint": {
+    "git_commit": "c12723c800a8195410f311a3f7fbae8e3568d1fa",
+    "code_clean": true,
+    "basis": "product-birth stamp（.arc/provenance.json），按 pipeline/ 判定。（产物里 git_dirty=true 但 pipeline_dirty=false —— 生成期间 **PLAN.md 在方案会话手里**，产出它的那份代码是干净的。）",
+    "stamped_at_product": true
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "a8b89a68eb46886ecf60f0f688b0264bb2d680c97c7f4f4314482136f616cec1",
+  "log_path": "runs/20260923T022226Z-prestashop-score-ps1.judges.log",
+  "tests_total": 86,
+  "tests_passed": 1,
+  "tests_failed": 85,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.0116,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-0.spec.ts:7",
+      "req_id": "REQ-0.",
+      "spec_file": "REQ-0.spec.ts",
+      "title": "REQ-0: Visit Homepage ───────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.1.spec.ts:7",
+      "req_id": "REQ-1.1.",
+      "spec_file": "REQ-1.1.spec.ts",
+      "title": "REQ-1.1: View Global Navigation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.2.spec.ts:7",
+      "req_id": "REQ-1.2.",
+      "spec_file": "REQ-1.2.spec.ts",
+      "title": "REQ-1.2: Logo Click Returns Home",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.3.1.spec.ts:7",
+      "req_id": "REQ-1.3.1.",
+      "spec_file": "REQ-1.3.1.spec.ts",
+      "title": "REQ-1.3.1: Expand Category Menu",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.3.2.spec.ts:7",
+      "req_id": "REQ-1.3.2.",
+      "spec_file": "REQ-1.3.2.spec.ts",
+      "title": "REQ-1.3.2: Enter Subcategory",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.4.spec.ts:7",
+      "req_id": "REQ-1.4.",
+      "spec_file": "REQ-1.4.spec.ts",
+      "title": "REQ-1.4: Search Function ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.5.spec.ts:7",
+      "req_id": "REQ-1.5.",
+      "spec_file": "REQ-1.5.spec.ts",
+      "title": "REQ-1.5: User Entry ───────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.6.1.spec.ts:7",
+      "req_id": "REQ-1.6.1.",
+      "spec_file": "REQ-1.6.1.spec.ts",
+      "title": "REQ-1.6.1: View Cart Count",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.6.2.spec.ts:7",
+      "req_id": "REQ-1.6.2.",
+      "spec_file": "REQ-1.6.2.spec.ts",
+      "title": "REQ-1.6.2: Click to Enter Cart",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "req_id": "REQ-2.1.",
+      "spec_file": "REQ-2.1.spec.ts",
+      "title": "REQ-2.1: Browse Homepage ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.2.2.spec.ts:7",
+      "req_id": "REQ-2.2.2.",
+      "spec_file": "REQ-2.2.2.spec.ts",
+      "title": "REQ-2.2.2: Manual Carousel Switch",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.2.3.spec.ts:7",
+      "req_id": "REQ-2.2.3.",
+      "spec_file": "REQ-2.2.3.spec.ts",
+      "title": "REQ-2.2.3: Click Carousel to Navigate",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.3.spec.ts:7",
+      "req_id": "REQ-2.3.",
+      "spec_file": "REQ-2.3.spec.ts",
+      "title": "REQ-2.3: Popular Products Section",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.1.spec.ts:7",
+      "req_id": "REQ-3.1.",
+      "spec_file": "REQ-3.1.spec.ts",
+      "title": "REQ-3.1: Enter Category Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.1.spec.ts:7",
+      "req_id": "REQ-3.2.1.",
+      "spec_file": "REQ-3.2.1.spec.ts",
+      "title": "REQ-3.2.1: View Breadcrumb Navigation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.2.spec.ts:7",
+      "req_id": "REQ-3.2.2.",
+      "spec_file": "REQ-3.2.2.spec.ts",
+      "title": "REQ-3.2.2: Navigate Back via Breadcrumb",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.spec.ts:7",
+      "req_id": "REQ-3.3.",
+      "spec_file": "REQ-3.3.spec.ts",
+      "title": "REQ-3.3: Category Description",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.spec.ts:7",
+      "req_id": "REQ-3.4.",
+      "spec_file": "REQ-3.4.spec.ts",
+      "title": "REQ-3.4: Subcategory Navigation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.1.spec.ts:7",
+      "req_id": "REQ-3.5.1.",
+      "spec_file": "REQ-3.5.1.spec.ts",
+      "title": "REQ-3.5.1: View Product Cards",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.2.spec.ts:7",
+      "req_id": "REQ-3.5.2.",
+      "spec_file": "REQ-3.5.2.spec.ts",
+      "title": "REQ-3.5.2: Hover to Show Action Buttons",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.3.spec.ts:7",
+      "req_id": "REQ-3.5.3.",
+      "spec_file": "REQ-3.5.3.spec.ts",
+      "title": "REQ-3.5.3: Click to Enter Detail Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.1.spec.ts:7",
+      "req_id": "REQ-3.6.1.",
+      "spec_file": "REQ-3.6.1.spec.ts",
+      "title": "REQ-3.6.1: Filter by Availability",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.2.spec.ts:7",
+      "req_id": "REQ-3.6.2.",
+      "spec_file": "REQ-3.6.2.spec.ts",
+      "title": "REQ-3.6.2: Filter by Color",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.3.spec.ts:7",
+      "req_id": "REQ-3.6.3.",
+      "spec_file": "REQ-3.6.3.spec.ts",
+      "title": "REQ-3.6.3: Filter by Price Range",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.4.spec.ts:7",
+      "req_id": "REQ-3.6.4.",
+      "spec_file": "REQ-3.6.4.spec.ts",
+      "title": "REQ-3.6.4: Clear All Filters",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.7.spec.ts:7",
+      "req_id": "REQ-3.7.",
+      "spec_file": "REQ-3.7.spec.ts",
+      "title": "REQ-3.7: Sort Function ────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.8.spec.ts:7",
+      "req_id": "REQ-3.8.",
+      "spec_file": "REQ-3.8.spec.ts",
+      "title": "REQ-3.8: Product Count Display",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.9.spec.ts:7",
+      "req_id": "REQ-3.9.",
+      "spec_file": "REQ-3.9.spec.ts",
+      "title": "REQ-3.9: Pagination ───────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.spec.ts:7",
+      "req_id": "REQ-4.1.",
+      "spec_file": "REQ-4.1.spec.ts",
+      "title": "REQ-4.1: Enter Product Detail Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.10.spec.ts:7",
+      "req_id": "REQ-4.10.",
+      "spec_file": "REQ-4.10.spec.ts",
+      "title": "REQ-4.10: Recently Viewed",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.11.spec.ts:7",
+      "req_id": "REQ-4.11.",
+      "spec_file": "REQ-4.11.spec.ts",
+      "title": "REQ-4.11: Related Products",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.spec.ts:7",
+      "req_id": "REQ-4.2.",
+      "spec_file": "REQ-4.2.spec.ts",
+      "title": "REQ-4.2: Product Image Area",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.spec.ts:7",
+      "req_id": "REQ-4.3.",
+      "spec_file": "REQ-4.3.spec.ts",
+      "title": "REQ-4.3: Product Basic Info",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.spec.ts:7",
+      "req_id": "REQ-4.4.",
+      "spec_file": "REQ-4.4.spec.ts",
+      "title": "REQ-4.4: Variant Selection",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.1.spec.ts:7",
+      "req_id": "REQ-4.5.1.",
+      "spec_file": "REQ-4.5.1.spec.ts",
+      "title": "REQ-4.5.1: Increase Quantity",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.2.spec.ts:7",
+      "req_id": "REQ-4.5.2.",
+      "spec_file": "REQ-4.5.2.spec.ts",
+      "title": "REQ-4.5.2: Decrease Quantity",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.3.spec.ts:7",
+      "req_id": "REQ-4.5.3.",
+      "spec_file": "REQ-4.5.3.spec.ts",
+      "title": "REQ-4.5.3: Direct Input Quantity",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.4.spec.ts:7",
+      "req_id": "REQ-4.5.4.",
+      "spec_file": "REQ-4.5.4.spec.ts",
+      "title": "REQ-4.5.4: Stock Insufficient Warning",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.6.1.spec.ts:7",
+      "req_id": "REQ-4.6.1.",
+      "spec_file": "REQ-4.6.1.spec.ts",
+      "title": "REQ-4.6.1: Add Product to Cart",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.6.2.spec.ts:7",
+      "req_id": "REQ-4.6.2.",
+      "spec_file": "REQ-4.6.2.spec.ts",
+      "title": "REQ-4.6.2: Continue Shopping After Add",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.6.3.spec.ts:7",
+      "req_id": "REQ-4.6.3.",
+      "spec_file": "REQ-4.6.3.spec.ts",
+      "title": "REQ-4.6.3: Proceed to Checkout After Add",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.7.spec.ts:7",
+      "req_id": "REQ-4.7.",
+      "spec_file": "REQ-4.7.spec.ts",
+      "title": "REQ-4.7: Add to Wishlist ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.8.1.spec.ts:7",
+      "req_id": "REQ-4.8.1.",
+      "spec_file": "REQ-4.8.1.spec.ts",
+      "title": "REQ-4.8.1: View Description Tab",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.8.2.spec.ts:7",
+      "req_id": "REQ-4.8.2.",
+      "spec_file": "REQ-4.8.2.spec.ts",
+      "title": "REQ-4.8.2: View Product Details Tab",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.9.1.spec.ts:7",
+      "req_id": "REQ-4.9.1.",
+      "spec_file": "REQ-4.9.1.spec.ts",
+      "title": "REQ-4.9.1: View Review List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.9.2.spec.ts:7",
+      "req_id": "REQ-4.9.2.",
+      "spec_file": "REQ-4.9.2.spec.ts",
+      "title": "REQ-4.9.2: Add Review ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.1.spec.ts:7",
+      "req_id": "REQ-5.1.",
+      "spec_file": "REQ-5.1.spec.ts",
+      "title": "REQ-5.1: Enter Cart ───────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.spec.ts:7",
+      "req_id": "REQ-5.2.",
+      "spec_file": "REQ-5.2.spec.ts",
+      "title": "REQ-5.2: Cart Product List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.spec.ts:7",
+      "req_id": "REQ-5.3.",
+      "spec_file": "REQ-5.3.spec.ts",
+      "title": "REQ-5.3: Modify Product Quantity",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.spec.ts:7",
+      "req_id": "REQ-5.4.",
+      "spec_file": "REQ-5.4.spec.ts",
+      "title": "REQ-5.4: Delete Product ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.spec.ts:7",
+      "req_id": "REQ-5.5.",
+      "spec_file": "REQ-5.5.spec.ts",
+      "title": "REQ-5.5: Cart Summary ─────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.spec.ts:7",
+      "req_id": "REQ-5.6.",
+      "spec_file": "REQ-5.6.spec.ts",
+      "title": "REQ-5.6: Continue Shopping Link",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.7.spec.ts:7",
+      "req_id": "REQ-5.7.",
+      "spec_file": "REQ-5.7.spec.ts",
+      "title": "REQ-5.7: Proceed to Checkout Button",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.spec.ts:7",
+      "req_id": "REQ-6.1.",
+      "spec_file": "REQ-6.1.spec.ts",
+      "title": "REQ-6.1: Start Checkout ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.2.spec.ts:7",
+      "req_id": "REQ-6.2.",
+      "spec_file": "REQ-6.2.spec.ts",
+      "title": "REQ-6.2: Personal Information Step",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.1.spec.ts:7",
+      "req_id": "REQ-6.3.1.",
+      "spec_file": "REQ-6.3.1.spec.ts",
+      "title": "REQ-6.3.1: Select Existing Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.2.spec.ts:7",
+      "req_id": "REQ-6.3.2.",
+      "spec_file": "REQ-6.3.2.spec.ts",
+      "title": "REQ-6.3.2: Add New Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.3.spec.ts:7",
+      "req_id": "REQ-6.3.3.",
+      "spec_file": "REQ-6.3.3.spec.ts",
+      "title": "REQ-6.3.3: Set Invoice Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.4.spec.ts:7",
+      "req_id": "REQ-6.4.",
+      "spec_file": "REQ-6.4.spec.ts",
+      "title": "REQ-6.4: Shipping Method Step",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.5.spec.ts:7",
+      "req_id": "REQ-6.5.",
+      "spec_file": "REQ-6.5.spec.ts",
+      "title": "REQ-6.5: Payment Step ─────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.6.spec.ts:7",
+      "req_id": "REQ-6.6.",
+      "spec_file": "REQ-6.6.spec.ts",
+      "title": "REQ-6.6: Order Confirmation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.7.spec.ts:7",
+      "req_id": "REQ-6.7.",
+      "spec_file": "REQ-6.7.spec.ts",
+      "title": "REQ-6.7: Order Complete Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.1.spec.ts:7",
+      "req_id": "REQ-7.1.",
+      "spec_file": "REQ-7.1.spec.ts",
+      "title": "REQ-7.1: Enter Login Page ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.spec.ts:7",
+      "req_id": "REQ-7.2.",
+      "spec_file": "REQ-7.2.spec.ts",
+      "title": "REQ-7.2: User Login ───────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.3.spec.ts:7",
+      "req_id": "REQ-7.3.",
+      "spec_file": "REQ-7.3.spec.ts",
+      "title": "REQ-7.3: User Registration",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.4.spec.ts:7",
+      "req_id": "REQ-7.4.",
+      "spec_file": "REQ-7.4.spec.ts",
+      "title": "REQ-7.4: Forgot Password ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.1.spec.ts:7",
+      "req_id": "REQ-8.1.",
+      "spec_file": "REQ-8.1.spec.ts",
+      "title": "REQ-8.1: Enter My Account ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.spec.ts:7",
+      "req_id": "REQ-8.2.",
+      "spec_file": "REQ-8.2.spec.ts",
+      "title": "REQ-8.2: Account Overview ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.3.spec.ts:7",
+      "req_id": "REQ-8.3.",
+      "spec_file": "REQ-8.3.spec.ts",
+      "title": "REQ-8.3: Account Information Management",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.4.1.spec.ts:7",
+      "req_id": "REQ-8.4.1.",
+      "spec_file": "REQ-8.4.1.spec.ts",
+      "title": "REQ-8.4.1: View Address List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.4.2.spec.ts:7",
+      "req_id": "REQ-8.4.2.",
+      "spec_file": "REQ-8.4.2.spec.ts",
+      "title": "REQ-8.4.2: Add New Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.4.3.spec.ts:7",
+      "req_id": "REQ-8.4.3.",
+      "spec_file": "REQ-8.4.3.spec.ts",
+      "title": "REQ-8.4.3: Edit Address ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.4.4.spec.ts:7",
+      "req_id": "REQ-8.4.4.",
+      "spec_file": "REQ-8.4.4.spec.ts",
+      "title": "REQ-8.4.4: Delete Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.5.1.spec.ts:7",
+      "req_id": "REQ-8.5.1.",
+      "spec_file": "REQ-8.5.1.spec.ts",
+      "title": "REQ-8.5.1: View Order List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.5.2.spec.ts:7",
+      "req_id": "REQ-8.5.2.",
+      "spec_file": "REQ-8.5.2.spec.ts",
+      "title": "REQ-8.5.2: View Order Details",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.5.3.spec.ts:7",
+      "req_id": "REQ-8.5.3.",
+      "spec_file": "REQ-8.5.3.spec.ts",
+      "title": "REQ-8.5.3: Reorder ──────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.5.4.spec.ts:7",
+      "req_id": "REQ-8.5.4.",
+      "spec_file": "REQ-8.5.4.spec.ts",
+      "title": "REQ-8.5.4: Download Invoice",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.1.spec.ts:7",
+      "req_id": "REQ-8.6.1.",
+      "spec_file": "REQ-8.6.1.spec.ts",
+      "title": "REQ-8.6.1: View Wishlist List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.2.spec.ts:7",
+      "req_id": "REQ-8.6.2.",
+      "spec_file": "REQ-8.6.2.spec.ts",
+      "title": "REQ-8.6.2: Create New Wishlist",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.3.spec.ts:7",
+      "req_id": "REQ-8.6.3.",
+      "spec_file": "REQ-8.6.3.spec.ts",
+      "title": "REQ-8.6.3: View Wishlist Products",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.4.spec.ts:7",
+      "req_id": "REQ-8.6.4.",
+      "spec_file": "REQ-8.6.4.spec.ts",
+      "title": "REQ-8.6.4: Rename Wishlist",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.5.spec.ts:7",
+      "req_id": "REQ-8.6.5.",
+      "spec_file": "REQ-8.6.5.spec.ts",
+      "title": "REQ-8.6.5: Delete Wishlist",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.6.spec.ts:7",
+      "req_id": "REQ-8.6.6.",
+      "spec_file": "REQ-8.6.6.spec.ts",
+      "title": "REQ-8.6.6: Remove Product from Wishlist",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.6.7.spec.ts:7",
+      "req_id": "REQ-8.6.7.",
+      "spec_file": "REQ-8.6.7.spec.ts",
+      "title": "REQ-8.6.7: Add Wishlist Product to Cart",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.7.spec.ts:7",
+      "req_id": "REQ-8.7.",
+      "spec_file": "REQ-8.7.spec.ts",
+      "title": "REQ-8.7: User Logout ──────",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "per_test_passed": [
+    {
+      "test_id": "REQ-2.2.1.spec.ts:7",
+      "title": "REQ-2.2.1: Carousel Auto Switch (5.1s)"
+    }
+  ],
+  "log_total_running": 86,
+  "failure_class_counts": {
+    "timeout": 85
+  },
+  "retries_observed": 0,
+  "has_summary": true,
+  "predicted": {
+    "source": "%TEMP%/ps1/predict.txt（**判分之前**落盘）",
+    "specs": [
+      {
+        "spec": "REQ-2.1.spec.ts",
+        "predicted": "fail",
+        "closure_targets": 4,
+        "need_display": 4,
+        "coverage": "11/11（100%）",
+        "missing": [
+          "popular products",
+          "newsletter",
+          "footer"
+        ],
+        "note": "可命中位置 14 条；另有 aria-label={模板串} 这类动态写法（静态拿不到值）"
+      }
+    ],
+    "predicted_pass": 0,
+    "predicted_fail": 1,
+    "note": "③ 只当信息（阈值待方案复核）；本轮的 predicted 会进 9/24 的 B_pred"
+  },
+  "notes": "【要的读数 = 「非零」】**1 / 86**：通过的只有 `REQ-2.2.1: Carousel Auto Switch`（5.1s，**子集外**）——按口径属「偶然通过」、不是能力证据，但闸门只问「这个 app 非不非零」✅（第 4 个非零 app）。⚠️ **子集那条（REQ-2.1）挂了**，且**③ 在判分前就预测它会挂**（预测 3/4 靶子不可达）→ 这一轮预注册的两格落在第 ② 格（0 条子集内通过），处理方式 = 记下新失败形态，不改提示词。\n\n【新的失败形态：不是没做，是「译了」】回产物核过：需求文本是**英文术语**（`carousel, Popular Products, promotion area, Newsletter subscription, footer`，见 requirements.yaml:167/185），而模型把它们**渲染成了中文**（产物里是 热门商品 / 促销活动 / 订阅我们的资讯）→ 判据的 `getByText(/popular products/i)` 自然找不到。**现有的 `PIPELINE_EXTRA_HARD_NAMES` 正好能治它**（注入后进 brief 的「必须逐字兑现」块 + L1 契约 → L1 会在闭环里报出来）——但本轮按预注册**照原样判分**（③ 只当信息、不用它挡判分），所以「把 ③ 的 unreachable 列表回灌硬清单」是一条**待方案会话拍板**的后续（它改的是生成输入）。\n\n【口径】1/86 = 1.2% 只说明「这个 app 有分」；其余 85 条属**子集外**（页面/流程不存在），不是能力证据。\n\n【记录侧】本轮顺带修了两处 extractor：记录的 `pipeline` 块原来**漏了 `pipeline_dirty`**、且 `code_clean` 只看仓库级 `git_dirty`（会把「只有文档在飞」读成「代码脏」）→ 现在带上了、且优先按 `pipeline/` 判定。"
+}

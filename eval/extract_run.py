@@ -225,6 +225,10 @@ def _pipeline_block(prov: dict | None, root: Path) -> dict:
         return {
             "git_commit": prov.get("git_commit"),
             "git_dirty": prov.get("git_dirty"),
+            # ⚠️ **必须带上**（2026-09-23 补）：它是"仓库脏"与"**产出产物的那份代码**脏"的区分字段，
+            # 而**记录**才是筛轮次的人要看的地方。实测漏过一次：两份记录的 `pipeline` 块里没有它，
+            # 而它只在产物的 `.arc/provenance.json` 里（于是"要判它就得去翻产物"）。
+            "pipeline_dirty": prov.get("pipeline_dirty"),
             "git_branch": prov.get("git_branch"),
             "attests": "product-birth",              # 这个值说的是"产出它的代码"
             "captured_at_product": prov.get("written_at"),
@@ -240,6 +244,7 @@ def _pipeline_block(prov: dict | None, root: Path) -> dict:
         }
     got = git_info(root)
     got["attests"] = "record-time"                   # ⚠️ 不是产物出生时的工作区
+    got["pipeline_dirty"] = None                     # 现采时没有"只算 pipeline/"的口径 → 显式置空，别让读者以为是 False
     return got
 
 
@@ -256,9 +261,16 @@ def _artifact_fingerprint(prov: dict | None, block: dict, root: Path) -> dict:
     """
     commit = (prov or {}).get("git_commit") or block.get("git_commit")
     if prov:
-        dirty = prov.get("git_dirty")
+        # code_clean 问的是「**产出它的那份代码**干不干净」→ 有 pipeline_dirty 就用它
+        # （仓库脏可能只是文档在飞：实测过 PLAN.md 在别的会话手里、而 pipeline/ 干净）。
+        # 老产物没有这个字段时才退回仓库级 git_dirty。
+        _precise = prov.get("pipeline_dirty")
+        dirty = _precise if _precise is not None else prov.get("git_dirty")
         return {"git_commit": commit, "code_clean": (not dirty) if dirty is not None else None,
-                "basis": "product-birth stamp（.arc/provenance.json）", "stamped_at_product": True}
+                "basis": "product-birth stamp（.arc/provenance.json）"
+                         + ("，按 pipeline/ 判定" if _precise is not None
+                            else "，**退回仓库级**（该产物早于 pipeline_dirty 字段）"),
+                "stamped_at_product": True}
     dirty = block.get("git_dirty")
     return {"git_commit": commit, "code_clean": (not dirty) if dirty is not None else None,
             "basis": "record-time capture（attests 的是写记录那一刻的工作区，不是产物出生时）",

@@ -34,6 +34,33 @@ NEED_KINDS = {"role", "label", "text", "title", "placeholder", "testid", "css",
               "arg:need", "arg(re):need", "fixture:need"}
 
 
+# ---- 「locator 可命中的位置」----------------------------------------------------
+# 为什么必须有（第二十八轮审核 §三 A）：**裸的源码子串**不等于"判据能命中它"。
+# 实测那次漏报：`/header/i` 在产物里只出现在 `<header>` **标签名**与 axios 的 `headers:` **JS 键**
+# 里（两者都不是文本、也不是可访问名）→ 判据 `getByRole(..., {name})` / `getByText` 都找不到它，
+# 而"源码子串"检查却说"在" → **③ 预测通过、实际挂**。
+# → 判据要的是"**能被某个 locator 命中**"，所以只在下面这几类位置里找：
+#     ① JSX 文本节点（`>Sidebar<`）      ② `aria-label="…"`     ③ `title="…"`
+#     ④ `placeholder="…"`               ⑤ `name="…"`（表单字段名）
+# 静态检查做不到"真的跑一遍 locator 解析"，但"必须落在这些属性/文本里"已经把
+# 最危险的方向（**漏报**）收窄了 —— 反例仍存在（见文件末尾的已知边界）。
+RE_TEXT_NODE = re.compile(r">([^<>{}]{2,120})<")
+RE_ATTR_HITTABLE = re.compile(
+    r"\b(?:aria-label|title|placeholder|name|alt)\s*=\s*(?:"
+    r"\"([^\"]{2,120})\"|'([^']{2,120})'|\{\s*[\"'`]([^\"'`]{2,120})[\"'`]\s*\})")
+# 某些写法是"值来自变量/模板串"（`aria-label={label}`）→ 静态拿不到值，
+# 记一条**不可判**的证据，别默默当成"没有"（纪律 15：低覆盖不许伪装成"没有缺失"）。
+RE_ATTR_EXPR = re.compile(r"\b(?:aria-label|title|placeholder|name|alt)\s*=\s*\{\s*(?![\"'`])")
+
+
+def hittable_strings(blob: str) -> list[str]:
+    """产物里**能被 locator 命中**的字符串（文本节点 + 可访问名相关属性）。"""
+    out = [m.group(1).strip() for m in RE_TEXT_NODE.finditer(blob)]
+    for m in RE_ATTR_HITTABLE.finditer(blob):
+        out.append((m.group(1) or m.group(2) or m.group(3) or "").strip())
+    return [s for s in out if s]
+
+
 def frontend_blob(artifact: Path) -> str:
     front = artifact / "frontend/src"
     if not front.is_dir():
@@ -43,8 +70,18 @@ def frontend_blob(artifact: Path) -> str:
 
 
 def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
-    """产物里**一次都没出现**的名字（大小写不敏感；css 选择器去掉前导 `.`/#）。"""
-    low = blob.lower()
+    """产物里**命中不了**的名字。
+
+    判据分两类（第二十八轮审核 §三 A 定的）：
+      · **loose/正则靶子**（`arg(re)` 那种，值是 `toPattern()` 出来的正则）：
+        只在**可命中的位置**里按正则匹配 —— **不接受裸的源码子串命中**；
+      · 其余具名靶子：沿用"源码里出现过"（它们本来就是**精确名**，判据按名找，
+        而精确名出现在源码里的位置通常就是它被渲染的地方）。
+      `css` 靶子单独处理：取类名/标签名，在源码里查（它本来就是选择器，不是可访问名）。
+    """
+    hittable = hittable_strings(blob)
+    low_hit = [s.lower() for s in hittable]
+    low_all = blob.lower()
     out = []
     for t in targets:
         if t.kind not in NEED_KINDS or not t.name:
@@ -52,11 +89,22 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
         needle = t.name.strip()
         if t.kind == "css":
             needle = needle.lstrip(".#").split(":")[0]
+            if len(needle) >= 2 and needle.lower() not in low_all:
+                out.append(t)
+            continue
         if len(needle) < 2:
             continue
-        if needle.lower() not in low:
+        if "arg(re)" in t.kind:                     # loose：必须落在可命中的位置
+            try:
+                pat = re.compile(needle, re.I)
+            except re.error:
+                pat = re.compile(re.escape(needle), re.I)
+            if not any(pat.search(s) for s in hittable):
+                out.append(t)
+            continue
+        if needle.lower() not in low_all:           # 精确名：沿用"源码里出现过"
             out.append(t)
-    return out
+    return out, hittable, bool(RE_ATTR_EXPR.search(blob))
 
 
 def load_truth(record_path: Path) -> dict[str, bool]:
@@ -102,12 +150,16 @@ def main() -> int:
 
     rows = []
     cov_all = ts.Coverage()
+    hittable_seen: set[str] = set()   # 产物里能被 locator 命中的字符串（口径见 missing_targets）
+    expr_attr = False                 # 有没有 `aria-label={表达式}` 这类静态拿不到值的写法
     unrecognized: list[str] = []
     for spec in ts.spec_files(d, subset):
         targets, cov, used = ts.closure_for_spec(spec, htext, bodies)
         cov_all.add(cov)
         unrecognized += ts.unrecognized_snippets(spec.read_text(encoding="utf-8", errors="replace"))
-        miss = missing_targets(targets, blob)
+        miss, hittable, has_expr = missing_targets(targets, blob)
+        hittable_seen.update(hittable)
+        expr_attr = expr_attr or has_expr
         rows.append((spec, cov, len(targets), miss))
 
     print(f"{'spec':34s} {'预测':6s} {'闭包靶子':>8s} {'需显示':>6s}  覆盖率")
@@ -129,6 +181,9 @@ def main() -> int:
 
     print(f"\n── 覆盖率（**必看**：低 M 会把「漏抽」伪装成「没有缺失」）──")
     print(f"  合计：{cov_all}")
+    print(f"  可命中位置：{len(hittable_seen)} 条字符串（文本节点 + aria-label/title/placeholder/name/alt）"
+          + ("；⚠️ 有 `aria-label={表达式}` 这类静态拿不到值的写法 → loose 靶子可能被误判为不可达"
+             if expr_attr else ""))
     if unrecognized:
         print(f"  ⚠️ 未识别的定位调用 {len(unrecognized)} 处（前 5）：")
         for s in unrecognized[:5]:

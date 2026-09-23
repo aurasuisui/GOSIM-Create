@@ -1,112 +1,62 @@
 #!/usr/bin/env bash
-# 🔴 提交纪律的机器化闸门 —— 「一个工作轮次 = 一个 commit」（AGENTS.md 的「提交纪律」）
+# 🔴 主线纪律：**`main` 只收「一个阶段一个 commit」；日常工作在分支上。**（AGENTS.md 的「提交纪律」）
 #
-# 为什么需要它：这条纪律写在 AGENTS.md 里，**但仍然被违反了两次** ——
-#   9/21：一天 49 个 commit（"一次只改一处"的旧规则）；
-#   9/22：同一轮里 docs/12 + STATUS 各提一条，**秒级相邻**，4 个 commit 变成一个轮次。
-# → 本项目的结论是"靠纪律防不住，得靠机器"（同硬规则第 15/17 条）。
+# 为什么改成这样（2026-09-23，用户定的工作流）：
+#   上一版闸门是"最近 60 分钟内最多 2 个 commit"。**实测证明它只记录、不限制** ——
+#   一段 22 小时的执行里出了 38 个 commit，**全部经放行口过去**（38/38，理由一律"新轮次"），
+#   而其中 **15 个的相邻间隔不到 5 分钟**（`docs/12` + `STATUS` 这种同一轮的两个文件）。
+#   → **限速改不了粒度问题**：粒度是"轮次"的概念，而 hook 看不见轮次。
+#   改按**「在哪提交」**分流（这是机器能看见的）：
+#     · **分支**（如 `work`）：执行会话的日常工作日志 —— **随便提交，不设限**；
+#     · **`main`**：只在**一个阶段跑完且验过**之后合并进来 —— **一个阶段一个 commit**。
 #
-# 判据：最近 WINDOW 分钟内已有 ≥ MAX 个 commit → 拒绝（默认 60 分钟 / 2 条，第 3 个开始拦）。
+# 判据：在 `main` / `master` 上提交时，message 必须含**一行** `阶段: <原因>`；否则拒绝。
+#   在其它分支上：**不拦**（分支就是工作日志，细粒度是好事）。
 #
-# ⚠️ **为什么"amend 也要带放行变量"，而不是自动放行 amend**（这条是**实测**出来的，不是推理）：
-#   第一版想在 hook 里识别 `--amend` 并放行，于是把实参打出来看（git 2.52）：
-#       git commit -m x               → $2="message"  $3=""
-#       git commit --amend -m y       → $2="message"  $3=""       ← 与普通提交**完全同形**
-#       git commit --amend --no-edit  → $2="commit"  $3="HEAD"    ← 只有这一种能认出来
-#   而且 hook 环境里**没有** GIT_REFLOG_ACTION 之类的区分变量（实测只有 GIT_INDEX_FILE / GIT_PREFIX）。
-#   → **一个"只对某种 amend 形式生效"的豁免比没有更糟**（本项目管这叫"又宽又松"）。
-#   所以设计成：**只有一条显式、可追溯的放行方式**，amend 也走它。
+# 放行口：`ALLOW_FAST_COMMIT=1 git commit ...`（紧急情况；可 grep 审计）
+#   ⚠️ `git commit --no-verify` 对这条闸门**无效**（它只跳过 pre-commit 与 commit-msg，
+#      **不跳过 prepare-commit-msg**）——有意的：只留一条显式、可追溯的放行方式。
 #
-# 逃生口：`ALLOW_FAST_COMMIT=1 git commit ...`
-#   ⚠️ **`git commit --no-verify` 对此无效**：它只跳过 pre-commit 与 commit-msg，
-#      **不跳过 prepare-commit-msg**。这是有意的——避免一条会永久静默生效的旁路。
+# 合并阶段的推荐做法：`./eval/stage-merge.sh "阶段名"`（**不需要 checkout main**，
+#   避免这个多会话共用工作区在切分支期间被人提交到错误的父上）。
 #
-# 安装：git config core.hooksPath .githooks   （全新 clone 之后要重跑一次）
+# 安装：`git config core.hooksPath .githooks`（**全新 clone 之后要重跑一次**）
 
 set -u
 
-# ⚠️ 这里**不能**写 `[ -n "$ALLOW_FAST_COMMIT" ] && exit 0` ——那个早退会让下面的留痕检查
-#    变成死代码（实测踩过：测试"放行但无标记"时提交照样通过）。
+[ -n "${ALLOW_FAST_COMMIT:-}" ] && exit 0
 
-# 还没有任何 commit（初始提交）→ 不拦
-git rev-parse --verify HEAD >/dev/null 2>&1 || exit 0
+branch="$(git symbolic-ref --short -q HEAD || true)"
 
-MSG_FILE="${1:-}"
+case "$branch" in
+  main|master) ;;      # 以下检查只对主线生效
+  *) exit 0 ;;         # 分支上不拦
+esac
 
-# 🔴 放行必须**留痕**，而且**留的是带原因的固定词表**（2026-09-22 加，同日收紧一次）
-#    背景：第一版只要求"有一行 `轮次: 独立`"，结果它退化成常规路径 ——
-#    实测 35 个 commit 里 10 个带标记、最近 9 个里 6 个，其中三条（15:50/15:51/15:52）
-#    属**同一个工作轮次**（本该 `--amend`），还有一条的标记原文自认"承上一条同一轮"。
-#    "同一轮"不在放行清单里（清单只有两条）→ **词表化**，让放行无法含糊、也让 grep 能分开审计。
-#
-# 规则：用 `ALLOW_FAST_COMMIT=1` 放行时，message 必须含**下面两个之一**（裸的 `轮次: 独立` 不再接受）：
-#        轮次: 独立-新轮次          # 确实是新的一轮（同一小时内第 3 次起）
-#        轮次: 独立-可单独回滚      # 这一条需要能单独 revert（AGENTS.md 允许的另一种例外）
-#      同一轮的第二处改动**不在此清单**——正确动作是 `git commit --amend`。
-# 事后审计（两类可分开）：
-#      git log --grep="轮次: 独立-新轮次"
-#      git log --grep="轮次: 独立-可单独回滚"
-MARKER_NEW="轮次: 独立-新轮次"
-MARKER_REV="轮次: 独立-可单独回滚"
-if [ -n "${ALLOW_FAST_COMMIT:-}" ]; then
-  # ⚠️ 必须用 `-qxF`（整行等于标记），不能用 `-qF`（子串）——
-  #    子串匹配会把"正文里**提及**这个词表值"也算成放行（实测踩过：
-  #    说明词表本身的那条 commit，正文里引用了两个值，于是在两个审计里各出现一次）。
-  #    同型的松紧问题本项目已经吃过：**判据要能区分"使用"与"提及"。**
-  if [ -z "$MSG_FILE" ] \
-     || { ! grep -qxF "$MARKER_NEW" "$MSG_FILE" 2>/dev/null \
-          && ! grep -qxF "$MARKER_REV" "$MSG_FILE" 2>/dev/null; }; then
-    printf '\n⛔ 用了 `ALLOW_FAST_COMMIT=1` 放行，但 message 里没有**词表里的**标记行。\n' >&2
-    cat >&2 <<'EOF'
-
-放行必须写清**原因**——放行信息只活在环境变量里、在 git 历史里查不到，
-所以原因必须落在 message 里，且**只能二选一**：
-
-    轮次: 独立-新轮次          ← 确实是新的一轮
-    轮次: 独立-可单独回滚      ← 这一条需要能单独 revert
-
-⚠️ **"同一轮的第二处改动"不在清单里** —— 那种情况该做的是：
-
-    ALLOW_FAST_COMMIT=1 git commit --amend --no-edit
-
-（裸的 `轮次: 独立` 已不接受：实测它会让放行退化成"必须多打一行字"，信息量≈0。）
-
-EOF
-    exit 1
-  fi
+msg_file="${1:-}"
+if [ -n "$msg_file" ] && [ -f "$msg_file" ] && grep -qE '^阶段:' "$msg_file"; then
   exit 0
 fi
 
-WINDOW_MIN="${COMMIT_WINDOW_MIN:-60}"
-MAX_IN_WINDOW="${COMMIT_MAX_IN_WINDOW:-2}"
+# 静态说明用**带引号的** heredoc：不加引号时反引号会被 bash 当命令执行，提示文字会被吃掉一半
+# （实测踩过：`阶段` 变成 "command not found"）
+cat >&2 <<'EOF'
 
-count=$(git log --since="$WINDOW_MIN minutes ago" --format=%H 2>/dev/null | grep -c . || true)
+⛔ 在 `main` 上提交，但 message 里没有 `阶段: ` 这一行。
 
-if [ "${count:-0}" -ge "$MAX_IN_WINDOW" ]; then
-  # 动态行用 printf（能展开变量）；静态说明用**带引号的** heredoc
-  # ⚠️ heredoc 必须带引号（<<'EOF'）：不加引号时反引号会被 bash 当命令执行，提示文字会被吃掉一半
-  #    （实测踩过：`--amend` 变成 "line 33: --amend: command not found"）
-  printf '\n⛔ 最近 %s 分钟内已经有 %s 个 commit（上限 %s）。\n' \
-    "$WINDOW_MIN" "$count" "$MAX_IN_WINDOW" >&2
-  cat >&2 <<'EOF'
+主线纪律（AGENTS.md）：**`main` 只收「一个阶段一个 commit」**；日常工作请提交到分支上。
 
-提交纪律（AGENTS.md）：**一个「工作轮次」= 一个 commit** —— 不是一文件一个、不是一小修一个。
+  · 如果你在跑一个阶段（执行 / 审核 / 调研）→ **先切到工作分支**：
+        git switch work          # 分支上的提交不设限，随便提
+    跑完并且**验过之后**再合并进 main：
+        ./eval/stage-merge.sh "这一阶段做了什么"     # 不需要 checkout main
 
-  · 这次改动**属于同一轮**（例如刚提交了 docs/，现在提交 STATUS）→ **并进上一条**：
-        ALLOW_FAST_COMMIT=1 git commit --amend --no-edit
-    或想重写 message：
-        git reset --soft HEAD~1   &&   ALLOW_FAST_COMMIT=1 git commit -F <message-file>
+  · 如果你确实是在给 MAIN 落一个阶段 → message 里加一行：
+        阶段: 一句话说清这个阶段
 
-  · 确实是**新轮次** / 这一条**需要单独回滚** → 显式放行（**message 里必须写清原因**）：
+  · 紧急 / 特殊情况放行：
         ALLOW_FAST_COMMIT=1 git commit ...
-    并在 message 里加**词表里的**标记行（二选一）：
-        轮次: 独立-新轮次        /        轮次: 独立-可单独回滚
-    ⚠️ "同一轮的第二处改动"不在此列 —— 那种情况用上面的 `--amend`，并同样带放行变量。
-
-  ⚠️ amend 也要带放行变量：**本 hook 认不出 amend**（实测三种形式里只有一种能认出来），
-     所以不做半吊子豁免。`git commit --no-verify` 对本闸门无效（它不跳过 prepare-commit-msg）。
+    （`git commit --no-verify` 对本闸门无效）
 
 EOF
-  exit 1
-fi
-exit 0
+exit 1

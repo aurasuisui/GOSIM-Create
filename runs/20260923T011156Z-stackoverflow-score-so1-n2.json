@@ -1,0 +1,593 @@
+{
+  "run_id": "20260923T011156Z-stackoverflow-score-so1-n2.judges",
+  "arm_id": "so1-n2",
+  "round": 1,
+  "change_description": "n=2（预注册 %TEMP%/so1/PREREG-n2.md）：同一份产物（%TEMP%/so1/app，与 so1 逐字节相同）再判一次，测那个非零（REQ-1.3）在判分噪声下是否复现。零 token（不重新生成）。",
+  "captured_at": "2026-09-23T02:16:28Z",
+  "app": "stackoverflow",
+  "port": 3301,
+  "arc_test_date": "2026-09-20",
+  "model": "unknown",
+  "visual_model": null,
+  "ci_env": null,
+  "retries_effective": 0,
+  "load_snapshot": "status=free runners=0 port=free listeners=0",
+  "snapshot_note": "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己",
+  "pipeline": {
+    "git_commit": "f4160ccd14229c0355f9f68a4da84e8269b614b3",
+    "git_dirty": false,
+    "git_branch": "main",
+    "attests": "product-birth",
+    "captured_at_product": "2026-09-22T14:30:13Z",
+    "app_hint": "stackoverflow",
+    "req_ids": [
+      "REQ-1.1"
+    ],
+    "generate_mode": "1",
+    "stage_seconds": 9.4,
+    "tokens_total": 13830,
+    "tokens_generation_only": 7202,
+    "verify_ran": true
+  },
+  "provenance_source": "stage-artifact",
+  "pipeline_at_record_time": {
+    "git_commit": "c12723c800a8195410f311a3f7fbae8e3568d1fa",
+    "git_dirty": true,
+    "git_branch": "main"
+  },
+  "artifact_fingerprint": {
+    "git_commit": "f4160ccd14229c0355f9f68a4da84e8269b614b3",
+    "code_clean": true,
+    "basis": "product-birth stamp（.arc/provenance.json）",
+    "stamped_at_product": true,
+    "note": "与 so1 是**同一份产物**（本次判分未改产物一个字节、未重新生成）；两次判分都在静置条件下（load_snapshot=status=free runners=0 port=free listeners=0）"
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main"
+  },
+  "requirements_sha256": "dcf802a82fc40d6d82fae901115be4401b275ce34858f388a9784f3a21b8e124",
+  "log_path": "runs/20260923T011156Z-stackoverflow-score-so1-n2.judges.log",
+  "tests_total": 66,
+  "tests_passed": 1,
+  "tests_failed": 65,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.0152,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-0.spec.ts:7",
+      "req_id": "REQ-0.",
+      "spec_file": "REQ-0.spec.ts",
+      "title": "REQ-0: Enter Platform ────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.1.spec.ts:7",
+      "req_id": "REQ-1.1.",
+      "spec_file": "REQ-1.1.spec.ts",
+      "title": "REQ-1.1: View Homepage Layout",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.2.spec.ts:7",
+      "req_id": "REQ-1.2.",
+      "spec_file": "REQ-1.2.spec.ts",
+      "title": "REQ-1.2: Global Navigation Header",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.4.spec.ts:7",
+      "req_id": "REQ-1.4.",
+      "spec_file": "REQ-1.4.spec.ts",
+      "title": "REQ-1.4: Main Question Feed",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.5.spec.ts:7",
+      "req_id": "REQ-1.5.",
+      "spec_file": "REQ-1.5.spec.ts",
+      "title": "REQ-1.5: Right Sidebar Widgets",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "req_id": "REQ-2.1.",
+      "spec_file": "REQ-2.1.spec.ts",
+      "title": "REQ-2.1: Anonymous Session",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.2.spec.ts:7",
+      "req_id": "REQ-2.2.",
+      "spec_file": "REQ-2.2.spec.ts",
+      "title": "REQ-2.2: Authenticated Session",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.3.spec.ts:7",
+      "req_id": "REQ-2.3.",
+      "spec_file": "REQ-2.3.spec.ts",
+      "title": "REQ-2.3: Elevated Privileges",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.1.spec.ts:7",
+      "req_id": "REQ-2.4.1.",
+      "spec_file": "REQ-2.4.1.spec.ts",
+      "title": "REQ-2.4.1: Successful Login",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.2.spec.ts:7",
+      "req_id": "REQ-2.4.2.",
+      "spec_file": "REQ-2.4.2.spec.ts",
+      "title": "REQ-2.4.2: Empty Credentials",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.3.spec.ts:7",
+      "req_id": "REQ-2.4.3.",
+      "spec_file": "REQ-2.4.3.spec.ts",
+      "title": "REQ-2.4.3: Invalid Email Format",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.4.spec.ts:7",
+      "req_id": "REQ-2.4.4.",
+      "spec_file": "REQ-2.4.4.spec.ts",
+      "title": "REQ-2.4.4: Unregistered Email",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.5.spec.ts:7",
+      "req_id": "REQ-2.4.5.",
+      "spec_file": "REQ-2.4.5.spec.ts",
+      "title": "REQ-2.4.5: Incorrect Password",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.1.spec.ts:7",
+      "req_id": "REQ-2.5.1.",
+      "spec_file": "REQ-2.5.1.spec.ts",
+      "title": "REQ-2.5.1: Successful Sign Up",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.2.spec.ts:7",
+      "req_id": "REQ-2.5.2.",
+      "spec_file": "REQ-2.5.2.spec.ts",
+      "title": "REQ-2.5.2: Email Already Registered",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.3.spec.ts:7",
+      "req_id": "REQ-2.5.3.",
+      "spec_file": "REQ-2.5.3.spec.ts",
+      "title": "REQ-2.5.3: Weak Password",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.spec.ts:7",
+      "req_id": "REQ-2.6.",
+      "spec_file": "REQ-2.6.spec.ts",
+      "title": "REQ-2.6: View User Profile",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.7.spec.ts:7",
+      "req_id": "REQ-2.7.",
+      "spec_file": "REQ-2.7.spec.ts",
+      "title": "REQ-2.7: Edit Profile Management",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.1.spec.ts:7",
+      "req_id": "REQ-3.1.",
+      "spec_file": "REQ-3.1.spec.ts",
+      "title": "REQ-3.1: View Question List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.1.spec.ts:7",
+      "req_id": "REQ-3.2.1.",
+      "spec_file": "REQ-3.2.1.spec.ts",
+      "title": "REQ-3.2.1: Create New Question",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.2.spec.ts:7",
+      "req_id": "REQ-3.2.2.",
+      "spec_file": "REQ-3.2.2.spec.ts",
+      "title": "REQ-3.2.2: Required Field Validation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.1.spec.ts:7",
+      "req_id": "REQ-3.3.1.",
+      "spec_file": "REQ-3.3.1.spec.ts",
+      "title": "REQ-3.3.1: Default Question View",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.2.spec.ts:7",
+      "req_id": "REQ-3.3.2.",
+      "spec_file": "REQ-3.3.2.spec.ts",
+      "title": "REQ-3.3.2: Question Header and Metadata",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.3.spec.ts:7",
+      "req_id": "REQ-3.3.3.",
+      "spec_file": "REQ-3.3.3.spec.ts",
+      "title": "REQ-3.3.3: Post Voting and Interaction Sidebar",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.4.spec.ts:7",
+      "req_id": "REQ-3.3.4.",
+      "spec_file": "REQ-3.3.4.spec.ts",
+      "title": "REQ-3.3.4: Main Post Content and Tags",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.5.spec.ts:7",
+      "req_id": "REQ-3.3.5.",
+      "spec_file": "REQ-3.3.5.spec.ts",
+      "title": "REQ-3.3.5: Post Author and Ownership Card",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.6.spec.ts:7",
+      "req_id": "REQ-3.3.6.",
+      "spec_file": "REQ-3.3.6.spec.ts",
+      "title": "REQ-3.3.6: Question Comments and Inline Interaction",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.1.spec.ts:7",
+      "req_id": "REQ-3.4.1.",
+      "spec_file": "REQ-3.4.1.spec.ts",
+      "title": "REQ-3.4.1: Enter Edit Mode",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.2.spec.ts:7",
+      "req_id": "REQ-3.4.2.",
+      "spec_file": "REQ-3.4.2.spec.ts",
+      "title": "REQ-3.4.2: Title and Tags Editor",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.3.spec.ts:7",
+      "req_id": "REQ-3.4.3.",
+      "spec_file": "REQ-3.4.3.spec.ts",
+      "title": "REQ-3.4.3: Markdown Body Editor with Preview",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.4.spec.ts:7",
+      "req_id": "REQ-3.4.4.",
+      "spec_file": "REQ-3.4.4.spec.ts",
+      "title": "REQ-3.4.4: Edit Summary and Revision History",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.5.spec.ts:7",
+      "req_id": "REQ-3.4.5.",
+      "spec_file": "REQ-3.4.5.spec.ts",
+      "title": "REQ-3.4.5: Guidance Sidebar (How to Edit)",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.spec.ts:7",
+      "req_id": "REQ-3.5.",
+      "spec_file": "REQ-3.5.spec.ts",
+      "title": "REQ-3.5: Delete Question",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.1.spec.ts:7",
+      "req_id": "REQ-3.6.1.",
+      "spec_file": "REQ-3.6.1.spec.ts",
+      "title": "REQ-3.6.1: Upvote Question",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.6.2.spec.ts:7",
+      "req_id": "REQ-3.6.2.",
+      "spec_file": "REQ-3.6.2.spec.ts",
+      "title": "REQ-3.6.2: Downvote Question",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.spec.ts:7",
+      "req_id": "REQ-4.1.",
+      "spec_file": "REQ-4.1.spec.ts",
+      "title": "REQ-4.1: Answer Submission (Your Answer)",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.spec.ts:7",
+      "req_id": "REQ-4.2.",
+      "spec_file": "REQ-4.2.spec.ts",
+      "title": "REQ-4.2: Answer Evaluation (Voting)",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.spec.ts:7",
+      "req_id": "REQ-4.3.",
+      "spec_file": "REQ-4.3.spec.ts",
+      "title": "REQ-4.3: Accepted Answer Selection",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.spec.ts:7",
+      "req_id": "REQ-4.4.",
+      "spec_file": "REQ-4.4.spec.ts",
+      "title": "REQ-4.4: Answer List Controls & Sorting",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.1.spec.ts:7",
+      "req_id": "REQ-4.5.1.",
+      "spec_file": "REQ-4.5.1.spec.ts",
+      "title": "REQ-4.5.1: Successfully Edit Answer",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.2.spec.ts:7",
+      "req_id": "REQ-4.5.2.",
+      "spec_file": "REQ-4.5.2.spec.ts",
+      "title": "REQ-4.5.2: Empty Answer Body",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.3.spec.ts:7",
+      "req_id": "REQ-4.5.3.",
+      "spec_file": "REQ-4.5.3.spec.ts",
+      "title": "REQ-4.5.3: Cancel Answer Editing",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.6.spec.ts:7",
+      "req_id": "REQ-4.6.",
+      "spec_file": "REQ-4.6.spec.ts",
+      "title": "REQ-4.6: Delete Answer ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.1.1.spec.ts:7",
+      "req_id": "REQ-5.1.1.",
+      "spec_file": "REQ-5.1.1.spec.ts",
+      "title": "REQ-5.1.1: Post Comment",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.1.2.spec.ts:7",
+      "req_id": "REQ-5.1.2.",
+      "spec_file": "REQ-5.1.2.spec.ts",
+      "title": "REQ-5.1.2: View All Comments",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.1.spec.ts:7",
+      "req_id": "REQ-5.2.1.",
+      "spec_file": "REQ-5.2.1.spec.ts",
+      "title": "REQ-5.2.1: Edit Comment",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.2.spec.ts:7",
+      "req_id": "REQ-5.2.2.",
+      "spec_file": "REQ-5.2.2.spec.ts",
+      "title": "REQ-5.2.2: Delete Comment",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.spec.ts:7",
+      "req_id": "REQ-5.3.",
+      "spec_file": "REQ-5.3.spec.ts",
+      "title": "REQ-5.3: Upvote Comment",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.spec.ts:7",
+      "req_id": "REQ-5.4.",
+      "spec_file": "REQ-5.4.spec.ts",
+      "title": "REQ-5.4: Add Comment on Answer",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.spec.ts:7",
+      "req_id": "REQ-5.5.",
+      "spec_file": "REQ-5.5.spec.ts",
+      "title": "REQ-5.5: Reply to Comments",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.spec.ts:7",
+      "req_id": "REQ-6.1.",
+      "spec_file": "REQ-6.1.spec.ts",
+      "title": "REQ-6.1: View All Tags ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.2.spec.ts:7",
+      "req_id": "REQ-6.2.",
+      "spec_file": "REQ-6.2.spec.ts",
+      "title": "REQ-6.2: Tag Detail Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.spec.ts:7",
+      "req_id": "REQ-6.3.",
+      "spec_file": "REQ-6.3.spec.ts",
+      "title": "REQ-6.3: Follow Tags ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.1.spec.ts:7",
+      "req_id": "REQ-7.1.",
+      "spec_file": "REQ-7.1.spec.ts",
+      "title": "REQ-7.1: Basic Search ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.spec.ts:7",
+      "req_id": "REQ-7.2.",
+      "spec_file": "REQ-7.2.spec.ts",
+      "title": "REQ-7.2: Filter Questions by Tab",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.3.spec.ts:7",
+      "req_id": "REQ-7.3.",
+      "spec_file": "REQ-7.3.spec.ts",
+      "title": "REQ-7.3: Create Custom Filter",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.1.spec.ts:7",
+      "req_id": "REQ-8.1.",
+      "spec_file": "REQ-8.1.spec.ts",
+      "title": "REQ-8.1: View Reputation History",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.1.spec.ts:7",
+      "req_id": "REQ-8.2.1.",
+      "spec_file": "REQ-8.2.1.spec.ts",
+      "title": "REQ-8.2.1: Badge Award Notification",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.2.spec.ts:7",
+      "req_id": "REQ-8.2.2.",
+      "spec_file": "REQ-8.2.2.spec.ts",
+      "title": "REQ-8.2.2: View All Badges",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.1.spec.ts:7",
+      "req_id": "REQ-9.1.",
+      "spec_file": "REQ-9.1.spec.ts",
+      "title": "REQ-9.1: View Activity Tab",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.2.spec.ts:7",
+      "req_id": "REQ-9.2.",
+      "spec_file": "REQ-9.2.spec.ts",
+      "title": "REQ-9.2: Activity Sidebar Navigation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.3.spec.ts:7",
+      "req_id": "REQ-9.3.",
+      "spec_file": "REQ-9.3.spec.ts",
+      "title": "REQ-9.3: User Answers History",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.4.spec.ts:7",
+      "req_id": "REQ-9.4.",
+      "spec_file": "REQ-9.4.spec.ts",
+      "title": "REQ-9.4: User Questions History",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.5.spec.ts:7",
+      "req_id": "REQ-9.5.",
+      "spec_file": "REQ-9.5.spec.ts",
+      "title": "REQ-9.5: Reputation and Engagement Tracking",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.6.spec.ts:7",
+      "req_id": "REQ-9.6.",
+      "spec_file": "REQ-9.6.spec.ts",
+      "title": "REQ-9.6: User Responses and Comments",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "per_test_passed": [
+    {
+      "test_id": "REQ-1.3.spec.ts:7",
+      "title": "REQ-1.3: Sidebar Navigation (768ms)"
+    }
+  ],
+  "log_total_running": 66,
+  "failure_class_counts": {
+    "timeout": 65
+  },
+  "retries_observed": 0,
+  "has_summary": true,
+  "notes": "【预注册第 ① 格命中】**1 / 66**，通过的是 **`REQ-1.3.spec.ts:7`（768ms）**——与第一轮（390ms）**同一条**；且**失败集合也逐条相同**（对称差 0 条）→ 这一分在**判分噪声**下站得住。⚠️ 三条限定词照旧：① 只覆盖**判分噪声**（不含生成方差）；② 它是**子集外**的偶发通过，用途只是\"闸门只要非零\"，**不是能力证据**；③ 毫秒从 390 → 768（都在 sub-second 通过形态里，与失败侧的超时不同族）。"
+}
