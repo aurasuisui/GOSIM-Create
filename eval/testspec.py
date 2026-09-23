@@ -75,6 +75,11 @@ class Target:
     name: str          # 可访问名 / 文本 / 选择器 / fixture 值
     role: str = ""     # kind=role 时才有
     where: str = ""    # 来自哪个文件的哪一段（留痕用）
+    # `all`（默认）= 这些名字**都要能命中**（`expectTextsVisible` 那种合取）；
+    # `any` = **任一个命中即可**（`expectAnyVisible([a,b,c])` 那种析取）。
+    # 🔴 为什么必须分（2026-09-23 实测，ctrip）：把析取当成合取会**凭空要求产物多显示几个词**
+    # （假阳性方向），并让硬清单被灌水。识别方式 = 被调用的 helper 名字里含 `any`。
+    mode: str = "all"
 
 
 @dataclass
@@ -388,30 +393,48 @@ def call_arg_targets(spec_text: str, helpers_text: str, where: str = "") -> list
     是两种不同的东西，混在一起会让硬清单灌水。
     """
     out: list[Target] = []
-    for m in RE_H_CALL_ARGS.finditer(spec_text):
-        hname = m.group(1)
+    calls = [(m.group(1), m.end() - 1) for m in RE_H_CALL_ARGS.finditer(spec_text)]
+    return _arg_targets(spec_text, calls, helpers_text, where, prefix="h.")
+
+
+def bare_call_arg_targets(body: str, names: set[str], helpers_text: str, where: str = "") -> list[Target]:
+    """**helper 体内的**调用实参（ctrip 风格：regex 字面量写在 helper 内部）。
+
+    为什么必须有（2026-09-23 实测，ctrip）：它的 spec 只写 `h.ensurePasswordLogin(page)`（**无参数**），
+    而真正的靶子写在 helper 体内 —— `clickIfVisible(page, [/账号登录/, /password login/i])`。
+    只扫 spec 的实参 ⇒ 闭包里"具体靶子 0 个"（**看起来像"干净"，其实是没看见** —— 纪律 15 的老形态）。
+    """
+    calls = [(m.group(1), m.end() - 1) for m in RE_BARE_CALL.finditer(body) if m.group(1) in names]
+    return _arg_targets(body, calls, helpers_text, where, prefix="")
+
+
+def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str) -> list[Target]:
+    """从给定调用点里抽"实参靶子"（spec 与 helper 体共用这一段）。"""
+    out: list[Target] = []
+    for hname, open_paren in calls:
         cls = classify_helper(hname)
-        args = _args_of(spec_text, m.end() - 1)
+        mode = "any" if "any" in hname.lower() else "all"   # `expectAnyVisible` 是析取
+        args = _args_of(text, open_paren)
         if not args:
             continue
-        where_h = f"{where or 'spec'} → h.{hname}()"
+        where_h = f"{where or 'spec'} → {prefix}{hname}()"
         for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", args):
             if lit.lower() not in STOP_ARG_WORDS:
-                out.append(Target(f"arg:{cls}", lit, "", where_h))
+                out.append(Target(f"arg:{cls}", lit, "", where_h, mode))
         # **正则字面量实参**（`h.expectTextsVisible(page, [/BookStack/i])`）——
         # 不取它会让"闭包里的具体靶子"凭空变 0（实测：bookstack 的 REQ-1.1 就是这一形态）。
         for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", args):
             cleaned = pat.strip().strip("^$").strip()
             if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
-                out.append(Target(f"arg(re):{cls}", cleaned, "", where_h))
+                out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, mode))
         refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(args)]
         vals = fixture_values(helpers_text, refs)
         for v in vals:
-            out.append(Target(f"fixture:{cls}", v, "", where_h))
+            out.append(Target(f"fixture:{cls}", v, "", where_h, mode))
         # 实参里出现 `h.FIXTURES.x` 但没解析出值（是对象）→ 记下来，别静默丢
         if refs and not vals:
             for r in refs:
-                out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "", f"{where or 'spec'}（未解析出值）"))
+                out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "", f"{where_h}（未解析出值）"))
     return out
 
 
@@ -472,6 +495,8 @@ def closure_for_spec(spec: Path, helpers_text: str, bodies: dict[str, str]) -> t
         sub, sub_cov = locators(body, f"helpers.{name}()")
         targets += sub
         cov.add(sub_cov)
+        # helper 体内的**调用实参**（ctrip 那种：regex 字面量写在 helper 里，spec 无参数）
+        targets += bare_call_arg_targets(body, set(bodies), helpers_text, f"helpers.{name}()")
         for m in RE_BARE_CALL.finditer(body):    # helper 之间互相调用
             if m.group(1) in bodies:
                 queue.append(m.group(1))

@@ -93,6 +93,11 @@ def collect(*, repo: Path | None = None, requirement_path=None,
         # 只要这一个为 False，"产出这份产物的代码"就是干净的（仓库其它地方可能只是文档在飞）
         "pipeline_dirty": pipeline_dirty,
         "git_branch": _git(repo, "rev-parse", "--abbrev-ref", "HEAD"),
+        # 🔴 **为什么要有 subject**（第三十轮审核 §三 A）：`git_commit` 指着一个 hash，
+        # 而 hash 会被下一次**历史重排 / 阶段合并**换掉 —— 实测：21 份带指纹的记录里 hash
+        # **全部不可达**（含刚落盘的那些）。而 `subject` 会被阶段合并**抄进提交正文**，能跨重排活下来。
+        # 所以溯源要两个都记：hash 用于"当下精确定位"，subject 用于"以后还认得出来"。
+        "git_subject": _git(repo, "log", "-1", "--format=%s"),
         "requirement_sha256": _sha256(Path(requirement_path)) if requirement_path else None,
     }
     if extra:

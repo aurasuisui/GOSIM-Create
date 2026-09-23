@@ -61,6 +61,20 @@ def hittable_strings(blob: str) -> list[str]:
     return [s for s in out if s]
 
 
+def _hits(t, hittable: list[str], low_all: str) -> bool:
+    """单个靶子"能不能被命中"（口径与 missing_targets 一致）。"""
+    if t.kind == "css":
+        needle = t.name.strip().lstrip(".#").split(":")[0]
+        return len(needle) < 2 or needle.lower() in low_all
+    if "arg(re)" in t.kind:
+        try:
+            pat = re.compile(t.name.strip(), re.I)
+        except re.error:
+            pat = re.compile(re.escape(t.name.strip()), re.I)
+        return any(pat.search(s) for s in hittable)
+    return t.name.strip().lower() in low_all
+
+
 def frontend_blob(artifact: Path) -> str:
     front = artifact / "frontend/src"
     if not front.is_dir():
@@ -83,6 +97,12 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
     low_hit = [s.lower() for s in hittable]
     low_all = blob.lower()
     out = []
+    # ---- 析取组（mode=any）：`expectAnyVisible([a, b, c])` **任一个命中即可** ----
+    # 为什么必须成组（2026-09-23 实测，ctrip）：把析取当合取会凭空要求产物多显示几个词（假阳性方向）。
+    any_group: dict[str, list] = {}
+    for t in targets:
+        if t.mode == "any" and t.kind in NEED_KINDS and t.name:
+            any_group.setdefault(t.where, []).append(t)
     for t in targets:
         if t.kind not in NEED_KINDS or not t.name:
             continue
@@ -104,6 +124,13 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
             continue
         if needle.lower() not in low_all:           # 精确名：沿用"源码里出现过"
             out.append(t)
+    # ---- any 组的收口：组内**任一个**命中 → 这组通过；全不命中 → 整组算缺 ----
+    failed_groups = []
+    for where_, group in any_group.items():
+        if not any(_hits(x, hittable, low_all) for x in group):
+            failed_groups.append(where_)
+            out.append(group[0])                    # 报一条带组信息的代表项
+    out = [x for i, x in enumerate(out) if x not in out[:i]]
     return out, hittable, bool(RE_ATTR_EXPR.search(blob))
 
 
