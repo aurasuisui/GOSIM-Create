@@ -55,6 +55,13 @@ STACK_CONTRACT = """### Main Stack
 外部测试只能通过 **`getByLabel(名字)` / `getByRole(<role>, {name})` / `getByText(文本)`** 定位与断言
 （禁用 class/id/data- 选择器与直连 API）。所以：
 
+* 🔴 **逐字，不许翻译**（2026-09-23 拍的第三类契约）：**需求文本里出现的可访问名 / 可见文本 /
+  靶子字面量，必须是逐字的——英文就英文、中文就中文，不许翻译、不许改写、不许「意译成更自然的表达」。**
+  实测的教训：需求写 `Display carousel, Popular Products, …, Newsletter subscription, footer`，
+  产物渲染成「热门商品 / 促销活动 / 订阅我们的资讯」→ 判据按英文找**必然找不到**。
+  **这不是「做得不够」，是契约被违反**；判据按名字找，**中英不对应就是 0 分**。
+  （它与「逐字兑现的引号名」是同一条原则：那条管引号里的名字，这条管需求行文里的名词短语。）
+
 * **每个控件都要有原生 label 关联**：`<label htmlFor="x">…</label>` + `<input id="x">`，
   不要只靠 placeholder / class / DOM 顺序。
 * **实体值（用户名、标题、单号…）必须渲染在它自己的元素里**，例如 `<span>{user.username}</span>`。
