@@ -288,6 +288,24 @@ PY
 > **单元 1 一抛就中止** → 单元 2/3 **没有被执行到**；"它们没问题"是**推断**，不是实测。
 > 复跑的三格预注册见 `%TEMP%/ctrip1/PREREG-rerun.md`（本轮备好，**等方案拍板**才跑）。
 
+### ⚠️ 回灌的**真实到达面**（判分窗口里零 token 核过，供方案拍板用）
+
+全仓 grep `EXTRA_HARD`：**只有一处读取** —— `pipeline/main.py:504`，而它在**验证闭环**那一段里。
+所以注入的硬名目前只到这两处：
+
+| 到达 | 证据 |
+|---|---|
+| ✅ **验证闭环的 brief**（模型自检 + 定向修复的 prompt） | `main.py:508` 用 `extra_hard` 构 brief → `verify_loop(requirement_brief=brief)` → `verify/loop.py:74`（`review()`） |
+| ✅ **L1 的 `required` 契约**（`check_accessible_names`，**驱动修复**） | `main.py:532`（`required = […pick 的静默名…] + extra_hard`） |
+| ❌ **初始生成**（`design` 那一次 + 各块实现） | `implement.py:459` 的 brief **没带 `extra_hard`**；`main.py:478` 调 `generate_app` 时**也没传**它 |
+
+→ **含义**：注入的名**不是"生成时就知道"**，而是**靠 L1 抓到 → 修复轮补上**
+（ctrip 第 1 轮 L1 抓到 `账号登录`、第 2 轮 0 条，走的正是这条路径）。
+→ **对复跑的意义**：cell ③（"串仍不在产物里"）**要读成"回灌没进 prompt"之前，先分清是哪一段 prompt** ——
+初始 prompt 里**本来就不会有它**；有它的是**修复轮**。
+→ **这也是方案那条决定的一部分**：若要让复合串**一开始就按「同一个元素、按序」落**，
+得把它接进 `generate_app`（一行 plumbing），并**在两条 prompt 上都写落点约束**。
+
 ---
 
 ## 2026-09-23 追加：阶梯④ `prestashop`（第四个 app，**非零**）
