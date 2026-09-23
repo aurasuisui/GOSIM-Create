@@ -80,6 +80,10 @@ class Target:
     # 🔴 为什么必须分（2026-09-23 实测，ctrip）：把析取当成合取会**凭空要求产物多显示几个词**
     # （假阳性方向），并让硬清单被灌水。识别方式 = 被调用的 helper 名字里含 `any`。
     mode: str = "all"
+    # 同一个「要求单元」的 id（`expectAnyVisible([[a,b],[c]])` 里 **外层每个元素 = 一个单元**：
+    # 单元内"任一"，单元之间"都要"）。为什么必须分（2026-09-23 实测，ctrip）：那族实参是**嵌套数组**，
+    # 扁平化两头都错 —— 既可能把 3 个单元并成 1 个（太松），也可能把单元内的候选当成各自必需（太紧）。
+    group: str = ""
 
 
 @dataclass
@@ -418,24 +422,89 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
         if not args:
             continue
         where_h = f"{where or 'spec'} → {prefix}{hname}()"
-        for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", args):
-            if lit.lower() not in STOP_ARG_WORDS:
-                out.append(Target(f"arg:{cls}", lit, "", where_h, mode))
-        # **正则字面量实参**（`h.expectTextsVisible(page, [/BookStack/i])`）——
-        # 不取它会让"闭包里的具体靶子"凭空变 0（实测：bookstack 的 REQ-1.1 就是这一形态）。
-        for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", args):
-            cleaned = pat.strip().strip("^$").strip()
-            if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
-                out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, mode))
-        refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(args)]
-        vals = fixture_values(helpers_text, refs)
-        for v in vals:
-            out.append(Target(f"fixture:{cls}", v, "", where_h, mode))
-        # 实参里出现 `h.FIXTURES.x` 但没解析出值（是对象）→ 记下来，别静默丢
-        if refs and not vals:
-            for r in refs:
-                out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "", f"{where_h}（未解析出值）"))
+        # **要求单元的解析规则**（2026-09-23 按 ctrip / bookstack 的真实形态定了三轮）：
+        #   第 1 个实参是 scope（page）；**第 2 个起**：
+        #   · `cls == "need"`（`expect*` 那族）→ 实参若为数组，**每个元素 = 一个要求单元**（都要满足）；
+        #     单元内部若还是数组 → 里面是**候选**（任一即可）。
+        #   · `cls == "input"`（`click/fill*` 那族）→ 整串实参的候选**合成一个单元**（**任一即可**）：
+        #     那族 helper 的实现是"挨个试，哪个可见就用哪个"（实测：`clickIfVisible`），
+        #     把候选当成"每个都要"会凭空要求产物多显示几个词（假阳性方向）。
+        #   对照：
+        #     `expectTextsVisible(page, [/a/, /b/])`     → 2 单元、各 1 候选 → a 与 b **都要**
+        #     `expectAnyVisible(page, [[/a/,/b/], [/c/]])` → 2 单元，单元内任一 → (a 或 b) **且** c
+        #     `clickIfVisible(page, [/x/, /y/])`         → 1 单元，候选 x/y → **任一即可**
+        value_args = split_top_level(args)[1:]        # 跳过 scope
+        if cls == "input":
+            gid = f"{where_h}#0"
+            blob = ",".join(value_args)
+            for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", blob):
+                if lit.lower() not in STOP_ARG_WORDS:
+                    out.append(Target(f"arg:{cls}", lit, "", where_h, "any", gid))
+            for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", blob):
+                cleaned = pat.strip().strip("^$").strip()
+                if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
+                    out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, "any", gid))
+            refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(blob)]
+            vals = fixture_values(helpers_text, refs)
+            for v in vals:
+                out.append(Target(f"fixture:{cls}", v, "", where_h, "any", gid))
+            if refs and not vals:
+                for r in refs:
+                    out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
+                                      f"{where_h}（未解析出值）", "any", gid))
+            continue
+        for arg_idx, arg in enumerate(value_args, start=1):
+            stripped = arg.strip()
+            units = (split_top_level(stripped[1:-1])
+                     if stripped.startswith("[") and stripped.endswith("]")
+                     else [stripped])
+            for unit_idx, unit in enumerate(units):
+                gid = f"{where_h}#{arg_idx}.{unit_idx}"
+                u = unit.strip()
+                cand = (split_top_level(u[1:-1])
+                        if u.startswith("[") and u.endswith("]") else [u])
+                elem_mode = "any" if len(cand) > 1 else "all"
+                for item in cand:
+                    lits = [l for l in re.findall(r"['\"]([^'\"]{2,80})['\"]", item)
+                            if l.lower() not in STOP_ARG_WORDS]
+                    pats = [p.strip().strip("^$").strip()
+                            for p in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", item)]
+                    pats = [p for p in pats if p and p.lower() not in STOP_ARG_WORDS]
+                    for lit in lits:
+                        out.append(Target(f"arg:{cls}", lit, "", where_h, elem_mode, gid))
+                    for pat in pats:
+                        out.append(Target(f"arg(re):{cls}", pat, "", where_h, elem_mode, gid))
+                    refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(item)]
+                    vals = fixture_values(helpers_text, refs)
+                    for v in vals:
+                        out.append(Target(f"fixture:{cls}", v, "", where_h, elem_mode, gid))
+                    if refs and not vals:      # 有 fixture 引用却没解析出值 → 记下来，别静默丢
+                        for r in refs:
+                            out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
+                                              f"{where_h}（未解析出值）", elem_mode, gid))
     return out
+
+
+def split_top_level(arg_text: str) -> list[str]:
+    """按**顶层**逗号切分（括号/方括号/花括号内的逗号不算）。
+
+    用途：`expectAnyVisible(page, [[a, b], [c]])` 的**外层元素**要各自成一个"要求单元"。
+    用去字符串版本做深度计数、再按原串切 —— 别用 `str.split(",")`（会把嵌套数组切碎）。
+    """
+    clean = _strip_strings_and_comments(arg_text)
+    depth = 0
+    out: list[str] = []
+    start = 0
+    for i, ch in enumerate(clean):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            out.append(arg_text[start:i])
+            start = i + 1
+    out.append(arg_text[start:])
+    return [x for x in (s.strip() for s in out) if x]
 
 
 def _braces_of(text: str, idx: int) -> str | None:
