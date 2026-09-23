@@ -20,8 +20,8 @@
 
 | 会话/时段 | 正在做什么 | 开始时间 | 状态 |
 |---|---|---|---|
-| score prestashop arm=ps1-n2（判分窗口，PID 由 bench.sh 持有） | **bench.sh 自动认领**（`bench.sh-autoclaim`） | 15:41 | 运行中 |
-| 9/23 **14:2x–16:0x** 执行（分支 `work`） | **判分队列**：① prestashop n=2（零 token，预注册 `%TEMP%/ps1/PREREG-n2.md`）→ ② ctrip 第一轮。**判分串行**；其间并行做零 token 的活（12306 的 ②、`git_subject`、ctrip 的生成）。跑完清这一行 | 2026-09-23 14:22 | 🟡 判分中 |
+| score ctrip arm=ctrip1b（判分窗口，PID 由 bench.sh 持有） | **bench.sh 自动认领**（`bench.sh-autoclaim`） | 17:48 | 运行中 |
+| 9/23 **17:5x–20:0x** 执行（分支 `work`） | **ctrip 第一轮判分（重跑）**：第一次跑到 **71/125** 被 MSYS fork 中断（第三次同形），已改名 `.INVALID-interrupted` + `recover --force`；现重新判分中。① prestashop n=2 已跑完（1/86，逐条相同）。跑完清这一行 | 2026-09-23 17:52 | 🟡 判分中 |
 
 **清场记录（2026-09-22 17:5x 执行会话）**：预注册复跑 `r4-keep4` **已跑完**
 （生成 37,290 token → 判分 **2/32**，通过 = `REQ-2.1`（812ms）+ `REQ-2.7.3`）。
