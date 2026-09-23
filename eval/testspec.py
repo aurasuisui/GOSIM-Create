@@ -85,6 +85,10 @@ class Target:
     # 单元内"任一"，单元之间"都要"）。为什么必须分（2026-09-23 实测，ctrip）：那族实参是**嵌套数组**，
     # 扁平化两头都错 —— 既可能把 3 个单元并成 1 个（太松），也可能把单元内的候选当成各自必需（太紧）。
     group: str = ""
+    # **族**（PLAN 裁决五）：这个靶子的**消费方 helper** 属于哪一族 → 决定"可命中性"要用哪套位置集合。
+    # 命名族 = 8 个 role 的可访问名 ∪ getByText 文本节点；字段族 = label ∪ placeholder ∪ 4 个输入 role。
+    # 为什么必须分：**两族的位置集合不同，混用会两个方向都误判**（实测见 `verify/hittable.py` 的表）。
+    family: str = ""
 
 
 @dataclass
@@ -430,6 +434,46 @@ def _call_snippets(text: str, rx: re.Pattern) -> list[str]:
     return out
 
 
+_FIELD_ROLES = {"textbox", "searchbox", "combobox", "spinbutton"}
+
+
+@lru_cache(maxsize=8)
+def helper_families(helpers_text: str) -> dict[str, str]:
+    """每个 helper 消费的是哪一族的位置集合（`named` / `field` / `named+field`）。
+
+    🔴 **由"真正消费它的那条链"决定，不硬编码 helper 名表**（PLAN 裁决五）：
+    实测过 `fillPasswordLogin` 走**字段族**、而同一个文件里的 `expectPasswordLoginForm` 走**命名族** ——
+    两族的消费方不同，**不能混读**。判法 = 在 helpers.ts 内走调用图：body 里出现的
+    `getByRole(<role>)` / `getByText` / `getByLabel` / `getByPlaceholder` 直接给族，
+    调用了别的 helper 则继承它的族（迭代到不动点）。
+    """
+    funcs: dict[str, str] = {}
+    for rx in (RE_FN_PARAMS, RE_ARROW_PARAMS):
+        for m in rx.finditer(helpers_text):
+            funcs[m.group(1)] = _body_after(helpers_text, m.end())
+    fams: dict[str, set[str]] = {}
+    for name, body in funcs.items():
+        clean = _strip_strings_and_comments(body)
+        got: set[str] = set()
+        for m in re.finditer(r"\.getByRole\(\s*['\"](\w+)['\"]", clean):
+            got.add("field" if m.group(1) in _FIELD_ROLES else "named")
+        if re.search(r"\.getByText\s*\(", clean):
+            got.add("named")
+        if re.search(r"\.getBy(Label|Placeholder)\s*\(", clean):
+            got.add("field")
+        fams[name] = got
+    for _ in range(3):                       # 调用图传播
+        changed = False
+        for name, body in funcs.items():
+            for callee, _args in _inner_calls(_strip_strings_and_comments(body), funcs):
+                if fams.get(callee) and not fams[callee] <= fams[name]:
+                    fams[name] |= fams[callee]
+                    changed = True
+        if not changed:
+            break
+    return {k: "+".join(sorted(v)) for k, v in fams.items()}
+
+
 @lru_cache(maxsize=8)
 def param_roles(helpers_text: str) -> dict[str, list[str]]:
     """每个 helper 的**每个形参**的角色：`need` / `input` / `unknown`。
@@ -554,9 +598,11 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
     """从给定调用点里抽"实参靶子"（spec 与 helper 体共用这一段）。"""
     out: list[Target] = []
     roles_all = param_roles(helpers_text)
+    fams_all = helper_families(helpers_text)
     for hname, open_paren in calls:
         fallback = classify_helper(hname)          # 只在**形参语义**拿不到时兜底
         role_list = roles_all.get(hname) or []
+        fam = fams_all.get(hname, "")             # 族：决定"可命中性"用哪套位置集合
         mode = "any" if "any" in hname.lower() else "all"   # `expectAnyVisible` 是析取
         args = _args_of(text, open_paren)
         if not args:
@@ -609,17 +655,17 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
                             for p in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", item)]
                     pats = [p for p in pats if p and p.lower() not in STOP_ARG_WORDS]
                     for lit in lits:
-                        out.append(Target(f"arg:{cls}", lit, "", where_h, elem_mode, gid))
+                        out.append(Target(f"arg:{cls}", lit, "", where_h, elem_mode, gid, fam))
                     for pat in pats:
-                        out.append(Target(f"arg(re):{cls}", pat, "", where_h, elem_mode, gid))
+                        out.append(Target(f"arg(re):{cls}", pat, "", where_h, elem_mode, gid, fam))
                     refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(item)]
                     vals = fixture_values(helpers_text, refs)
                     for v in vals:
-                        out.append(Target(f"fixture:{cls}", v, "", where_h, elem_mode, gid))
+                        out.append(Target(f"fixture:{cls}", v, "", where_h, elem_mode, gid, fam))
                     if refs and not vals:      # 有 fixture 引用却没解析出值 → 记下来，别静默丢
                         for r in refs:
                             out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
-                                              f"{where_h}（未解析出值）", elem_mode, gid))
+                                              f"{where_h}（未解析出值）", elem_mode, gid, fam))
         # 归"测试自己输入"的那些实参：**合成一个 any 单元**（旧语义原样保留 —— 它们是
         # "挨个试"的一组；拆成"每个都要"会把候选误当合取，往假阳性方向走）。
         if input_items:
@@ -628,19 +674,19 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
             blob = ",".join(input_items)
             for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", blob):
                 if lit.lower() not in STOP_ARG_WORDS:
-                    out.append(Target(f"arg:{cls}", lit, "", where_h, "any", gid))
+                    out.append(Target(f"arg:{cls}", lit, "", where_h, "any", gid, fam))
             for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", blob):
                 cleaned = pat.strip().strip("^$").strip()
                 if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
-                    out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, "any", gid))
+                    out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, "any", gid, fam))
             refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(blob)]
             vals = fixture_values(helpers_text, refs)
             for v in vals:
-                out.append(Target(f"fixture:{cls}", v, "", where_h, "any", gid))
+                out.append(Target(f"fixture:{cls}", v, "", where_h, "any", gid, fam))
             if refs and not vals:
                 for r in refs:
                     out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
-                                      f"{where_h}（未解析出值）", "any", gid))
+                                      f"{where_h}（未解析出值）", "any", gid, fam))
     return out
 
 

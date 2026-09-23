@@ -226,21 +226,21 @@ def main() -> int:
     if need_uncov:
         for key, t in sorted(need_uncov.items()):
             print(f"       · [{t.kind}{'/' + t.role if t.role else ''}] {t.name!r}"
-                  f"   （来自 {t.where}）")
+                  f"   （族={t.family or '?'}；来自 {t.where}）")
     else:
         print("       （空 —— 需要显示的靶子都被需求文本点名了）")
 
     print("\n    🟡 测试会**自己输入**的值（产物不必预先包含；但表单要能接住、并在页面上显示出来）：")
     if buckets["input"]:
         for key, t in sorted(buckets["input"].items()):
-            print(f"       · [{t.kind}] {t.name!r}   （来自 {t.where}）")
+            print(f"       · [{t.kind}] {t.name!r}   （族={t.family or '?'}；来自 {t.where}）")
     else:
         print("       （空）")
 
     if buckets["other"]:
         print("\n    ❓ 无法分类（helper 名不在动词表里）→ **人工看一眼**，别默默当没事：")
         for key, t in sorted(buckets["other"].items()):
-            print(f"       · [{t.kind}] {t.name!r}   （来自 {t.where}）")
+            print(f"       · [{t.kind}] {t.name!r}   （族={t.family or '?'}；来自 {t.where}）")
     return 0
 
 
