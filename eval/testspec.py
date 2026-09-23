@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 # ---- 定位器调用：先数总数（覆盖率的分母），再数我们认得的（分子）----
@@ -377,13 +378,150 @@ INPUT_VERBS = ("fill", "create", "type", "enter", "input", "set", "write", "edit
 
 
 def classify_helper(name: str) -> str:
-    """`need`（本应显示）/ `input`（测试自己输入）/ `unknown`（不认识 → 人工看一眼）。"""
+    """`need`（本应显示）/ `input`（测试自己输入）/ `unknown`（不认识 → 人工看一眼）。
+
+    ⚠️ **这是"记不住形参角色时的兜底"**（PLAN 裁决五的必修项）：它**只看 helper 名字里的动词**，
+    而实测 `clickNamed` / `openBooks` / `fillField` 的实参**全是"必须预先存在"的名字** ——
+    按名字判会把它们整类打成 `input`，于是 bookstack **32/34 条失败的首阻一条都没进硬清单**。
+    → 真实判据是 `param_roles()`（**跟着形参语义走**）；本函数只在 helper 体解析不到时兜底。
+    """
     low = name.lower()
     if any(v in low for v in NEED_VERBS):
         return "need"
     if any(v in low for v in INPUT_VERBS):
         return "input"
     return "unknown"
+
+
+# ---- 形参语义（PLAN 裁决五：分类跟着**形参**走，不跟着 helper 名里的动词走）----
+RE_FN_PARAMS = re.compile(r"^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)", re.M)
+RE_ARROW_PARAMS = re.compile(
+    r"^(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>", re.M)
+RE_LOCATOR_SINK = re.compile(r"\.(?:getBy[A-Za-z]+|locator)\s*\(")
+# **值**的落点：这些调用的实参是"测试自己敲进去的内容"，不是要找的名字。
+VALUE_SINKS = (".fill(", ".type(", ".selectOption(")
+
+
+def _param_names(sig: str) -> list[str]:
+    out: list[str] = []
+    for part in split_top_level(sig):
+        p = re.split(r"[:=]", part.strip(), 1)[0].strip().lstrip(".")
+        if p:
+            out.append(p)
+    return out
+
+
+def _call_snippets(text: str, rx: re.Pattern) -> list[str]:
+    """把 `rx` 匹配到的每次调用连同它的实参括号**配对取全**（用于看"谁出现在里面"）。"""
+    out: list[str] = []
+    for m in rx.finditer(text):
+        i = text.find("(", m.end() - 1)
+        if i < 0:
+            continue
+        depth = 0
+        for j in range(i, len(text)):
+            if text[j] == "(":
+                depth += 1
+            elif text[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    out.append(text[i:j + 1])
+                    break
+    return out
+
+
+@lru_cache(maxsize=8)
+def param_roles(helpers_text: str) -> dict[str, list[str]]:
+    """每个 helper 的**每个形参**的角色：`need` / `input` / `unknown`。
+
+    判据（`PLAN.md` 裁决五，2026-09-23 拍板）：
+    **`fillField` 的第 2 参（形参名就叫 `labelOrPlaceholder`）与 `click*` 的全部实参 =
+    "必须预先存在"**；只有**填入值**才是"测试自己输入"。
+
+    怎么做到的（**不硬编码 helper 名表**，各 app 的 helper 名不同）：
+    1. 取每个函数的形参与函数体；
+    2. **污点传播**：形参 → 由它派生的局部名（`const name = toPattern(value)` 里的 `name` 也算）；
+    3. **直接证据**：某形参（或其派生名）出现在 `getBy*/.locator(` 里 → `need`；
+       出现在 `.fill(/.type(/.selectOption(` 里 → `input`；
+    4. **调用图传播**：形参被传给另一个 helper 的第 k 个形参 → 继承那个形参的角色。
+    """
+    funcs: dict[str, tuple[str, str]] = {}
+    for rx in (RE_FN_PARAMS, RE_ARROW_PARAMS):
+        for m in rx.finditer(helpers_text):
+            funcs[m.group(1)] = (m.group(2), _body_after(helpers_text, m.end()))
+    roles = {n: ["unknown"] * len(_param_names(sig)) for n, (sig, _) in funcs.items()}
+    taints: dict[str, dict[str, set[str]]] = {}
+
+    for name, (sig, body) in funcs.items():
+        params = _param_names(sig)
+        clean = _strip_strings_and_comments(body)
+        t = {p: {p} for p in params}
+        # 污点传播跑**两遍**：`for (const pattern of patterns)` 这类**循环变量**要先被认出来，
+        # 体内 `const name = toPattern(pattern)` 才接得上（实测踩过：一遍时 `fillField` 的
+        # `labelOrPlaceholder` 只传到 `patterns` 就断了，角色停在 unknown）。
+        for _ in range(2):
+            for line in clean.splitlines():        # 形参 → 派生局部名
+                m = re.match(r"\s*(?:const|let|var)\s+(\w+)\s*=\s*(.+)$", line)
+                if not m:
+                    m = re.match(r"\s*for\s*\(\s*(?:const|let|var)\s+(\w+)\s+of\s+(.+?)\s*\)", line)
+                if not m:
+                    continue
+                lhs, rhs = m.group(1), m.group(2)
+                for p, names in t.items():
+                    if any(re.search(rf"\b{re.escape(n)}\b", rhs) for n in names):
+                        names.add(lhs)
+        taints[name] = t
+        locator_args = _call_snippets(clean, RE_LOCATOR_SINK)
+        value_args = [s for sink in VALUE_SINKS
+                      for s in _call_snippets(clean, re.compile(re.escape(sink)))]
+        for p, names in t.items():
+            hit = lambda chunks: any(          # noqa: E731
+                re.search(rf"\b{re.escape(n)}\b", c) for c in chunks for n in names)
+            if hit(locator_args):
+                roles[name][params.index(p)] = "need"
+            elif hit(value_args):
+                roles[name][params.index(p)] = "input"
+
+    # 调用图传播（迭代到不动点；helper 调用图很浅，3 遍足够）
+    for _ in range(3):
+        changed = False
+        for name, (_, body) in funcs.items():
+            clean = _strip_strings_and_comments(body)
+            for callee, args_str in _inner_calls(clean, funcs):
+                for k, arg in enumerate(split_top_level(args_str), start=0):
+                    if k >= len(roles.get(callee, [])):
+                        continue
+                    new = roles[callee][k]
+                    if new not in ("need", "input"):
+                        continue
+                    for p, names in taints.get(name, {}).items():
+                        if any(re.search(rf"\b{re.escape(n)}\b", arg) for n in names):
+                            idx = _param_names(funcs[name][0]).index(p)
+                            if roles[name][idx] != new:
+                                roles[name][idx] = new
+                                changed = True
+        if not changed:
+            break
+    return roles
+
+
+def _inner_calls(clean_body: str, funcs: dict) -> list[tuple[str, str]]:
+    """body 里对本文件其它函数的调用 → `(callee, 实参串)`。"""
+    out: list[tuple[str, str]] = []
+    for m in re.finditer(r"(?<![\w.])(\w+)\s*\(", clean_body):
+        if m.group(1) not in funcs:
+            continue
+        i = m.end() - 1
+        depth = 0
+        for j in range(i, len(clean_body)):
+            if clean_body[j] == "(":
+                depth += 1
+            elif clean_body[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    out.append((m.group(1), clean_body[i + 1:j]))
+                    break
+    return out
 
 
 def call_arg_targets(spec_text: str, helpers_text: str, where: str = "") -> list[Target]:
@@ -415,8 +553,10 @@ def bare_call_arg_targets(body: str, names: set[str], helpers_text: str, where: 
 def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str) -> list[Target]:
     """从给定调用点里抽"实参靶子"（spec 与 helper 体共用这一段）。"""
     out: list[Target] = []
+    roles_all = param_roles(helpers_text)
     for hname, open_paren in calls:
-        cls = classify_helper(hname)
+        fallback = classify_helper(hname)          # 只在**形参语义**拿不到时兜底
+        role_list = roles_all.get(hname) or []
         mode = "any" if "any" in hname.lower() else "all"   # `expectAnyVisible` 是析取
         args = _args_of(text, open_paren)
         if not args:
@@ -424,36 +564,34 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
         where_h = f"{where or 'spec'} → {prefix}{hname}()"
         # **要求单元的解析规则**（2026-09-23 按 ctrip / bookstack 的真实形态定了三轮）：
         #   第 1 个实参是 scope（page）；**第 2 个起**：
-        #   · `cls == "need"`（`expect*` 那族）→ 实参若为数组，**每个元素 = 一个要求单元**（都要满足）；
+        #   · `need`（名字/文本**必须预先存在**）→ 实参若为数组，**每个元素 = 一个要求单元**（都要满足）；
         #     单元内部若还是数组 → 里面是**候选**（任一即可）。
-        #   · `cls == "input"`（`click/fill*` 那族）→ 整串实参的候选**合成一个单元**（**任一即可**）：
+        #   · `input`（**测试自己输入的值**）→ 整串实参的候选**合成一个单元**（**任一即可**）：
         #     那族 helper 的实现是"挨个试，哪个可见就用哪个"（实测：`clickIfVisible`），
         #     把候选当成"每个都要"会凭空要求产物多显示几个词（假阳性方向）。
         #   对照：
         #     `expectTextsVisible(page, [/a/, /b/])`     → 2 单元、各 1 候选 → a 与 b **都要**
         #     `expectAnyVisible(page, [[/a/,/b/], [/c/]])` → 2 单元，单元内任一 → (a 或 b) **且** c
         #     `clickIfVisible(page, [/x/, /y/])`         → 1 单元，候选 x/y → **任一即可**
+        #
+        # 🔴 **角色按"第几个实参"判，不按 helper 名判**（PLAN 裁决五的必修项，2026-09-23）：
+        #   实测 `classify_helper('clickNamed')='input'`、`('openBooks')='input'`、`('fillField')='input'`
+        #   → bookstack **32/34 条失败的首阻**（`Books` 15 条 / `Shelves` 11 条 / `Email address` 6 条）
+        #   一条都没进硬清单（它们躺在"🟡 产物不必预先包含"那一栏里）。
+        #   真实判据：`fillField` 的第 2 参（`labelOrPlaceholder`）与 `click*` 的全部实参 =
+        #   **必须预先存在**；只有**填入值**才是"测试自己输入"（由 `param_roles()` 从函数体里推）。
         value_args = split_top_level(args)[1:]        # 跳过 scope
-        if cls == "input":
-            gid = f"{where_h}#0"
-            blob = ",".join(value_args)
-            for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", blob):
-                if lit.lower() not in STOP_ARG_WORDS:
-                    out.append(Target(f"arg:{cls}", lit, "", where_h, "any", gid))
-            for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", blob):
-                cleaned = pat.strip().strip("^$").strip()
-                if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
-                    out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, "any", gid))
-            refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(blob)]
-            vals = fixture_values(helpers_text, refs)
-            for v in vals:
-                out.append(Target(f"fixture:{cls}", v, "", where_h, "any", gid))
-            if refs and not vals:
-                for r in refs:
-                    out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
-                                      f"{where_h}（未解析出值）", "any", gid))
-            continue
+        input_items: list[str] = []                    # 归"测试自己输入"的实参 → 合成一个 any 单元
         for arg_idx, arg in enumerate(value_args, start=1):
+            # 形参语义优先；**unknown 时退回名字判**（保守：不把"不知道"当成"输入" ——
+            # 旧行为里 unknown 会落到"测试自己输入"那一栏，等于**默认漏一条**）
+            role = (role_list[arg_idx]
+                    if arg_idx < len(role_list) and role_list[arg_idx] in ("need", "input")
+                    else fallback)
+            if role != "need":
+                input_items.append(arg)
+                continue
+            cls = "need"
             stripped = arg.strip()
             units = (split_top_level(stripped[1:-1])
                      if stripped.startswith("[") and stripped.endswith("]")
@@ -482,6 +620,27 @@ def _arg_targets(text: str, calls, helpers_text: str, where: str, *, prefix: str
                         for r in refs:
                             out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
                                               f"{where_h}（未解析出值）", elem_mode, gid))
+        # 归"测试自己输入"的那些实参：**合成一个 any 单元**（旧语义原样保留 —— 它们是
+        # "挨个试"的一组；拆成"每个都要"会把候选误当合取，往假阳性方向走）。
+        if input_items:
+            cls = "input"
+            gid = f"{where_h}#in"
+            blob = ",".join(input_items)
+            for lit in re.findall(r"['\"]([^'\"]{2,80})['\"]", blob):
+                if lit.lower() not in STOP_ARG_WORDS:
+                    out.append(Target(f"arg:{cls}", lit, "", where_h, "any", gid))
+            for pat in re.findall(r"/([^/\n]{2,80})/[gimsuy]*", blob):
+                cleaned = pat.strip().strip("^$").strip()
+                if cleaned and cleaned.lower() not in STOP_ARG_WORDS:
+                    out.append(Target(f"arg(re):{cls}", cleaned, "", where_h, "any", gid))
+            refs = [r.group(1) for r in RE_FIXTURE_REF.finditer(blob)]
+            vals = fixture_values(helpers_text, refs)
+            for v in vals:
+                out.append(Target(f"fixture:{cls}", v, "", where_h, "any", gid))
+            if refs and not vals:
+                for r in refs:
+                    out.append(Target(f"fixture?:{cls}", "FIXTURES" + r, "",
+                                      f"{where_h}（未解析出值）", "any", gid))
     return out
 
 
