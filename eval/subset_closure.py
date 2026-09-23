@@ -172,7 +172,7 @@ def main() -> int:
         any_groups: dict[str, list] = {}
         for t in concrete:
             if t.mode == "any":
-                any_groups.setdefault(t.where, []).append(t)
+                any_groups.setdefault(t.group or t.where, []).append(t)   # 按「要求单元」分组
         group_ok: dict[str, bool] = {}
         for where_, group in any_groups.items():
             group_ok[where_] = any(
@@ -181,7 +181,7 @@ def main() -> int:
         for t in concrete:
             key = f"{t.kind}:{t.name}"
             if t.mode == "any":
-                in_subset = group_ok.get(t.where, False)
+                in_subset = group_ok.get(t.group or t.where, False)
             else:
                 in_subset = (covered_in_subset(t.name, stexts) if stexts else covered_in_requirements(t.name, files))
             (covered_all if in_subset else uncovered_all)[key] = t

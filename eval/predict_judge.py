@@ -102,10 +102,12 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
     any_group: dict[str, list] = {}
     for t in targets:
         if t.mode == "any" and t.kind in NEED_KINDS and t.name:
-            any_group.setdefault(t.where, []).append(t)
+            any_group.setdefault(t.group or t.where, []).append(t)   # 按「要求单元」分组
     for t in targets:
         if t.kind not in NEED_KINDS or not t.name:
             continue
+        if t.mode == "any":
+            continue     # **析取单元只由下面那一遍成组判**（逐条判会把"任一即可"读成"每个都要"）
         needle = t.name.strip()
         if t.kind == "css":
             needle = needle.lstrip(".#").split(":")[0]
