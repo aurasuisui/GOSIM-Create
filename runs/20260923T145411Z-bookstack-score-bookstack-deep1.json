@@ -1,0 +1,359 @@
+{
+  "run_id": "20260923T145411Z-bookstack-score-bookstack-deep1.judges",
+  "arm_id": "bookstack-deep1",
+  "round": 1,
+  "change_description": "bookstack **深度第一刀**（裁决五修完后）：子集 `{REQ-1.2, REQ-2.2, REQ-4.1, REQ-5.1}`、**零注入**（② 的未覆盖栏为空）；生成 **89,568 token**（生成段 45,321 + 闭环 44,247）、11 文件、`degraded=False`。判分 34 条 → **2 通过**。",
+  "captured_at": "2026-09-23T15:27:29Z",
+  "app": "bookstack",
+  "port": 3301,
+  "arc_test_date": "2026-09-20",
+  "model": "unknown",
+  "visual_model": null,
+  "ci_env": null,
+  "retries_effective": 0,
+  "load_snapshot": "status=free-leftover runners=0 port=busy listeners=1",
+  "snapshot_note": "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己",
+  "pipeline": {
+    "git_commit": "f66b8492eb22d3d9e0551f6d34913a0607db0e3e",
+    "git_dirty": true,
+    "pipeline_dirty": false,
+    "git_branch": "work",
+    "git_subject": "裁决五·②：brief 的落点约束按族补齐（字段族也算 label/placeholder/输入框名）",
+    "attests": "product-birth",
+    "captured_at_product": "2026-09-23T14:14:13Z",
+    "app_hint": "bookstack",
+    "req_ids": [
+      "REQ-1.2",
+      "REQ-2.2",
+      "REQ-4.1",
+      "REQ-5.1"
+    ],
+    "generate_mode": "1",
+    "stage_seconds": 49.5,
+    "tokens_total": 89568,
+    "tokens_generation_only": 45321,
+    "verify_ran": true
+  },
+  "provenance_source": "stage-artifact",
+  "pipeline_at_record_time": {
+    "git_commit": "335dabe8c864de2ca1e292ec067ec16de4a5664a",
+    "git_dirty": true,
+    "git_branch": "work",
+    "git_subject": "STATUS：6/6 达成 → 报审核；下一步 = bookstack 深度第一刀判分（排在队列里）"
+  },
+  "artifact_fingerprint": {
+    "git_commit": "f66b8492eb22d3d9e0551f6d34913a0607db0e3e",
+    "code_clean": true,
+    "basis": "product-birth stamp（.arc/provenance.json），按 pipeline/ 判定",
+    "stamped_at_product": true
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main",
+    "git_subject": "feat: add arc-bench-lite"
+  },
+  "requirements_sha256": "7430a45afd0fb116da35907a98feb0a221645e722390893f145bfef32c061065",
+  "log_path": "runs/20260923T145411Z-bookstack-score-bookstack-deep1.judges.log",
+  "tests_total": 34,
+  "tests_passed": 2,
+  "tests_failed": 32,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.0588,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-1.2.spec.ts:7",
+      "req_id": "REQ-1.2.",
+      "spec_file": "REQ-1.2.spec.ts",
+      "title": "REQ-1.2: Back to Homepage from Other Pages",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.2.spec.ts:7",
+      "req_id": "REQ-2.2.",
+      "spec_file": "REQ-2.2.spec.ts",
+      "title": "REQ-2.2: Log In Successfully",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.1.spec.ts:7",
+      "req_id": "REQ-3.1.",
+      "spec_file": "REQ-3.1.spec.ts",
+      "title": "REQ-3.1: Enter Authenticated Homepage",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.spec.ts:7",
+      "req_id": "REQ-4.1.",
+      "spec_file": "REQ-4.1.spec.ts",
+      "title": "REQ-4.1: View Shelf List ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.1.spec.ts:7",
+      "req_id": "REQ-4.2.1.",
+      "spec_file": "REQ-4.2.1.spec.ts",
+      "title": "REQ-4.2.1: Enter Shelf Details Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.1.spec.ts:7",
+      "req_id": "REQ-4.3.1.",
+      "spec_file": "REQ-4.3.1.spec.ts",
+      "title": "REQ-4.3.1: Create Shelf ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.2.spec.ts:7",
+      "req_id": "REQ-4.3.2.",
+      "spec_file": "REQ-4.3.2.spec.ts",
+      "title": "REQ-4.3.2: Cancel Creation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.1.spec.ts:7",
+      "req_id": "REQ-4.4.1.",
+      "spec_file": "REQ-4.4.1.spec.ts",
+      "title": "REQ-4.4.1: Confirm Delete Shelf",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.2.spec.ts:7",
+      "req_id": "REQ-4.4.2.",
+      "spec_file": "REQ-4.4.2.spec.ts",
+      "title": "REQ-4.4.2: Cancel Delete Shelf",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.1.spec.ts:7",
+      "req_id": "REQ-4.5.1.",
+      "spec_file": "REQ-4.5.1.spec.ts",
+      "title": "REQ-4.5.1: Save Shelf Edits",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.2.spec.ts:7",
+      "req_id": "REQ-4.5.2.",
+      "spec_file": "REQ-4.5.2.spec.ts",
+      "title": "REQ-4.5.2: Cancel Shelf Edits",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.1.spec.ts:7",
+      "req_id": "REQ-5.1.",
+      "spec_file": "REQ-5.1.spec.ts",
+      "title": "REQ-5.1: View Books List ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.1.spec.ts:7",
+      "req_id": "REQ-5.2.1.",
+      "spec_file": "REQ-5.2.1.spec.ts",
+      "title": "REQ-5.2.1: Enter Book Details Page through Book List Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.2.spec.ts:7",
+      "req_id": "REQ-5.2.2.",
+      "spec_file": "REQ-5.2.2.spec.ts",
+      "title": "REQ-5.2.2: Enter Book Details Page through Shelf Details Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.1.spec.ts:7",
+      "req_id": "REQ-5.3.1.",
+      "spec_file": "REQ-5.3.1.spec.ts",
+      "title": "REQ-5.3.1: Fill out and Save Book",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.2.spec.ts:7",
+      "req_id": "REQ-5.3.2.",
+      "spec_file": "REQ-5.3.2.spec.ts",
+      "title": "REQ-5.3.2: Cancel Creating Book",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.1.spec.ts:7",
+      "req_id": "REQ-5.4.1.",
+      "spec_file": "REQ-5.4.1.spec.ts",
+      "title": "REQ-5.4.1: Save Book Edits",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.2.spec.ts:7",
+      "req_id": "REQ-5.4.2.",
+      "spec_file": "REQ-5.4.2.spec.ts",
+      "title": "REQ-5.4.2: Cancel Book Edits",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.1.spec.ts:7",
+      "req_id": "REQ-5.5.1.",
+      "spec_file": "REQ-5.5.1.spec.ts",
+      "title": "REQ-5.5.1: Confirm Delete Book",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.2.spec.ts:7",
+      "req_id": "REQ-5.5.2.",
+      "spec_file": "REQ-5.5.2.spec.ts",
+      "title": "REQ-5.5.2: Cancel Delete Book",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.1.spec.ts:7",
+      "req_id": "REQ-5.6.1.",
+      "spec_file": "REQ-5.6.1.spec.ts",
+      "title": "REQ-5.6.1: Fill out and Save Book with Shelf",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.1.spec.ts:7",
+      "req_id": "REQ-6.1.1.",
+      "spec_file": "REQ-6.1.1.spec.ts",
+      "title": "REQ-6.1.1: Save Page ─────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.2.spec.ts:7",
+      "req_id": "REQ-6.1.2.",
+      "spec_file": "REQ-6.1.2.spec.ts",
+      "title": "REQ-6.1.2: Save Draft ────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.3.spec.ts:7",
+      "req_id": "REQ-6.1.3.",
+      "spec_file": "REQ-6.1.3.spec.ts",
+      "title": "REQ-6.1.3: Delete Draft ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.2.1.spec.ts:7",
+      "req_id": "REQ-6.2.1.",
+      "spec_file": "REQ-6.2.1.spec.ts",
+      "title": "REQ-6.2.1: Create Chapter",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.1.spec.ts:7",
+      "req_id": "REQ-6.3.1.",
+      "spec_file": "REQ-6.3.1.spec.ts",
+      "title": "REQ-6.3.1: Enter Page Reading Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.2.spec.ts:7",
+      "req_id": "REQ-6.3.2.",
+      "spec_file": "REQ-6.3.2.spec.ts",
+      "title": "REQ-6.3.2: Redirect to Page Edit Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.1.spec.ts:7",
+      "req_id": "REQ-7.1.",
+      "spec_file": "REQ-7.1.spec.ts",
+      "title": "REQ-7.1: Add to Recently Viewed",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.spec.ts:7",
+      "req_id": "REQ-7.2.",
+      "spec_file": "REQ-7.2.spec.ts",
+      "title": "REQ-7.2: Quick Navigation from Recently Viewed",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.1.spec.ts:7",
+      "req_id": "REQ-8.1.",
+      "spec_file": "REQ-8.1.spec.ts",
+      "title": "REQ-8.1: Favorite Items ────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.spec.ts:7",
+      "req_id": "REQ-8.2.",
+      "spec_file": "REQ-8.2.spec.ts",
+      "title": "REQ-8.2: Quick Navigation from Favorites",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.1.spec.ts:7",
+      "req_id": "REQ-9.1.",
+      "spec_file": "REQ-9.1.spec.ts",
+      "title": "REQ-9.1: Quick Navigation from Recently Updated",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "per_test_passed": [
+    {
+      "test_id": "REQ-1.1.spec.ts:7",
+      "title": "REQ-1.1: Open Homepage (431ms)"
+    },
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "title": "REQ-2.1: Enter Login Page (465ms)"
+    }
+  ],
+  "log_total_running": 34,
+  "failure_class_counts": {
+    "timeout": 32
+  },
+  "retries_observed": 0,
+  "has_summary": true,
+  "predicted": {
+    "source": "⚠️ **③ 是在判分之后才跑的**（`%TEMP%/bookstack-deep1/PREREG.md` 写的是「判分前落盘」，**没照做**）→ 所以这不是预测，只是把 ③ 对**这份新产物**的判据补上；如实标注，不当成预注册命中。",
+    "predicted_pass": 2,
+    "predicted_fail": 32,
+    "confusion": {
+      "TP": 32,
+      "FP": 0,
+      "FN": 0,
+      "TN": 2
+    },
+    "coverage": "451/451（100%）",
+    "misses_named": {
+      "REQ-4.1.spec.ts": "缺 `[fixture:need] 'Shelf 4.1'`",
+      "REQ-5.1.spec.ts": "缺 `[fixture:need] 'Book 5.1'`"
+    }
+  },
+  "notes": [
+    "① 读数事实：`Running 34 tests` → **2 通过**，通过的是 `REQ-1.1.spec.ts:7`（431ms)；`REQ-2.1.spec.ts:7`（465ms)）；**零人工**；静置（拿锁前快照 `free-leftover runners=0`，与前一轮同形态）；出生处指纹 `f66b8492`、`pipeline_dirty=false`、`stamped_at_product=true`；`ERR_CONNECTION_REFUSED=0`。**与 `bookstack1`（子集 `{REQ-1.1, REQ-2.1}`）逐条相同**：同样是 **2/34**、同样是这两条成员。",
+    "② 机制/归因：**预注册判据第 ④ 格命中** —— 「首阻清了、而成员没中」：② 复核已确认 `Books`/`Shelves`/`Email address` 不再躺在「测试自己输入」那一栏（`REQ-5.1` 从 0 需要显示 / 2 输入 → **2 / 0**），但**成员一条没动**（`REQ-4.1`、`REQ-5.1` 都没过）。**新首阻是什么，两个工具独立同向指认**：L1 结尾 5 条 `seed_literals` 缺失，而 ③ 对 `REQ-4.1` / `REQ-5.1` 报的缺口正是 `[fixture:need] 'Shelf 4.1'` 与 `'Book 5.1'`；**回产物核过：这些字面量在前端与后端都不存在**（不是假阳性）→ 结论 = **卡在种子数据**，不是机制。→ 下一步（预注册写死的方向）：**补种子数据**，不是再改机制。",
+    "③ 口径与限定词：**条数 2 < 4**（`docs/04` 的保留门槛）→ **本轮不记账**（不当成「深度涨了」）；成员与 `bookstack1` 逐条相同 → 这一刀**没有可辨变化**；零人工 / 静置 / 出生处指纹 ✔；**n=1**；③ 的读数（TP=32/FP=0/覆盖率 451/451）是**判分之后**才跑的，**不是预注册命中**。"
+  ]
+}
