@@ -261,8 +261,19 @@ def build_requirement_brief(tree, a11y_index, req_ids: list[str] | None,
                      "同样按可访问名或可见文本兑现，不得改名；"
                      "**整串必须落在同一个元素的可访问名 / 可见文本里（按序）**——"
                      "拆成几个词分散在多个元素里**不算**兑现）：")
+        from verify.hittable import is_regex_body   # 只依赖 re，无循环 import
         for name in extra_hard:
-            if name:
+            if not name:
+                continue
+            if is_regex_body(name):
+                # 🔴 **呈现约束**（PLAN 裁决四的必要配套，2026-09-23）：
+                # ② 保留了"正则体"作为契约的表示，就必须说清它不是要照抄的字面串 ——
+                # 否则"逐字兑现"这句话本身就在**指令模型把正则源码渲染进 UI**。
+                parts.append(
+                    f"  - {name!r} —— ⚠️ **这是正则体，不要照抄进 UI**："
+                    "要渲染成**能被它匹配**的串（例如 `邮箱.*用户名.*手机号` 渲染成 `邮箱/用户名/手机号`），"
+                    "且**整串落在同一个元素**的可访问名 / 可见文本里（按序）。")
+            else:
                 parts.append(f"  - {name!r}")
         parts.append("")
     return "\n".join(parts)

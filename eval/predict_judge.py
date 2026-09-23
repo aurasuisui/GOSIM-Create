@@ -53,12 +53,11 @@ RE_ATTR_HITTABLE = re.compile(
 RE_ATTR_EXPR = re.compile(r"\b(?:aria-label|title|placeholder|name|alt)\s*=\s*\{\s*(?![\"'`])")
 
 
-def hittable_strings(blob: str) -> list[str]:
-    """产物里**能被 locator 命中**的字符串（文本节点 + 可访问名相关属性）。"""
-    out = [m.group(1).strip() for m in RE_TEXT_NODE.finditer(blob)]
-    for m in RE_ATTR_HITTABLE.finditer(blob):
-        out.append((m.group(1) or m.group(2) or m.group(3) or "").strip())
-    return [s for s in out if s]
+# 🔴 **一处实现、两处消费**（PLAN 裁决四）：可命中性口径搬到 `pipeline/verify/hittable.py`，
+# L1 与 ③ 共用同一份 —— 这里只是转发（改写测过：位置集合的成员资格由 `eval/locator_probe.js` 实测钉死，
+# 其中 **`name` 属性不算位置**（实测两族都不命中），旧实现把它当位置 = 修松）。
+sys.path.insert(0, str(ROOT / "pipeline"))
+from verify.hittable import hittable_strings  # noqa: E402,F401  （转发给本模块的调用方）
 
 
 def _hits(t, hittable: list[str], low_all: str) -> bool:
