@@ -250,6 +250,44 @@ PY
 「单元 = 一个元素的可访问名要匹配这个 pattern」。⚠️ 这属**方案会话在拍**的
 「③ 的 unreachable 回灌硬清单」，本轮不自己拍。
 
+### 📋 待注入清单（ctrip 复跑用；**判分窗口里零 token 整理，未执行**）
+
+证据三处：① 记录 `predicted.missing_units`（判分**前**落盘 `%TEMP%/ctrip1/predict.txt`）；
+② 判分失败行 `getByRole('button', { name: /邮箱.*用户名.*手机号/ }).first()`（`runs/*ctrip-score-ctrip1b.judges.log:358`）；
+③ **判据自己拍的可访问性树快照** `repos/arc-bench/test-results/ctrip/ctrip-tests-REQ-2.2-*/error-context.md`
+（失败那一刻的页面，不是我们的推断）。
+
+失败那一刻页面上**确实有**的（③ 的原文，未改一字）：
+
+```yaml
+- heading "账号登录" [level=1]
+- form "账号登录":
+  - text: 用户名   /   textbox "用户名"
+  - text: 密码     /   textbox "密码"
+  - button "登录"
+```
+
+→ `/密码/`（text 密码）与 `/登录/`（heading + button）的元素**都在快照里**；
+**唯一没有对应元素的是单元 1**。
+
+| # | 要注入的串 | **它必须落在哪**（判据的落点约束） | 判据路径 |
+|---|---|---|---|
+| **1** | **`邮箱/用户名/手机号`** | **单个元素的可见文本**，三个词**按此序**出现在**同一个元素**里。可命中的类别 = `button / link / tab / menuitem / option / radio / checkbox / heading` 的**可访问名**，或**任意元素的文本节点**（`getByText`）。→ **最稳的落点**：登录表单账号输入的 `<label htmlFor="username">` 文本写成这一串（同时满足 `getByText` 与 `getByLabel`，别的 spec 的 `fillField` 也吃得到） | `expectPasswordLoginForm` → `expectAnyVisible` → `expectVisible` → `resolveNamed` → `namedLocators`（`helpers.ts:321-334`） |
+| 2 | `密码` | 同上（文本节点即可）—— **失败快照里已有** | 同上（单元 2） |
+| 3 | `登录` | 同上，且要**可点击可见**（`openLoginPage` 先 `clickIfVisible`，失败会走 `clickNamed` 硬点）—— **失败快照里已有** | `openLoginPage`（`helpers.ts:585-588`） |
+| 4 | `账号登录` | **可选**（`clickIfVisible` 失败不抛错）；上一轮已注入过 | `ensurePasswordLogin`（`helpers.ts:598-602`） |
+
+⚠️ **三条语义必须带进 prompt，否则注入了仍可能不命中**：
+1. **`.*` 不跨元素** —— `邮箱` / `用户名` / `手机号` 分散在**三个**元素里**不算**，必须是**同一个元素**的文本；
+2. `resolveNamed` 的**兜底只试第一个候选**（`patterns[0]`，`helpers.ts:358`）→ 要落的是**第一个候选**
+   `邮箱.*用户名.*手机号` 的**字面形态**（`邮箱/用户名/手机号`），别只落 `/account/i` 那种备选；
+3. 判据**只认那 9 类位置**（8 种 role 名 + 文本节点）—— 把串塞进 `placeholder` / `name` 属性**对它不算命中**
+   （那是 `fieldLocators` 那一族，`expectVisible` 不走它）。
+
+> ⚠️ **证据只到"元素在快照里"这一层**：`expectAnyVisible` 是**按顺序**逐个 `await` 的，
+> **单元 1 一抛就中止** → 单元 2/3 **没有被执行到**；"它们没问题"是**推断**，不是实测。
+> 复跑的三格预注册见 `%TEMP%/ctrip1/PREREG-rerun.md`（本轮备好，**等方案拍板**才跑）。
+
 ---
 
 ## 2026-09-23 追加：阶梯④ `prestashop`（第四个 app，**非零**）
