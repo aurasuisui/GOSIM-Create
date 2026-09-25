@@ -53,12 +53,41 @@ RE_ATTR_HITTABLE = re.compile(
 RE_ATTR_EXPR = re.compile(r"\b(?:aria-label|title|placeholder|name|alt)\s*=\s*\{\s*(?![\"'`])")
 
 
-def hittable_strings(blob: str) -> list[str]:
-    """产物里**能被 locator 命中**的字符串（文本节点 + 可访问名相关属性）。"""
-    out = [m.group(1).strip() for m in RE_TEXT_NODE.finditer(blob)]
-    for m in RE_ATTR_HITTABLE.finditer(blob):
-        out.append((m.group(1) or m.group(2) or m.group(3) or "").strip())
-    return [s for s in out if s]
+# 🔴 **一处实现、两处消费**（PLAN 裁决四）：可命中性口径搬到 `pipeline/verify/hittable.py`，
+# L1 与 ③ 共用同一份 —— 这里只是转发（改写测过：位置集合的成员资格由 `eval/locator_probe.js` 实测钉死，
+# 其中 **`name` 属性不算位置**（实测两族都不命中），旧实现把它当位置 = 修松）。
+sys.path.insert(0, str(ROOT / "pipeline"))
+from verify.hittable import hittable_strings  # noqa: E402,F401  （转发给本模块的调用方）
+
+
+def _fam_strings(blob: str) -> dict[str, list[str]]:
+    """按族取位置集合（PLAN 裁决五第 ③ 件）—— 两族的位置**不同**，混用两个方向都会误判。"""
+    from verify import hittable as H
+    return {"named": H.hittable_strings(blob, H.NAMED),
+            "field": H.hittable_strings(blob, H.FIELD)}
+
+
+def _hits(t, hittable: list[str], low_all: str, fam_strs: dict | None = None) -> bool:
+    """单个靶子"能不能被命中"（口径与 missing_targets 一致）。
+
+    `fam_strs` 给定时，**正则靶子按它自己的族取位置集合**（`t.family`）；
+    靶子没带族（老调用点/兜底）→ 退回两族并集。
+    """
+    if t.kind == "css":
+        needle = t.name.strip().lstrip(".#").split(":")[0]
+        return len(needle) < 2 or needle.lower() in low_all
+    if "arg(re)" in t.kind:
+        src = hittable
+        if fam_strs and getattr(t, "family", ""):
+            src = [x for f in t.family.split("+") for x in fam_strs.get(f, ())]
+            if not src:                     # 该族一个位置都没有 → 判"命中不了"（不许用并集兜底）
+                return False
+        try:
+            pat = re.compile(t.name.strip(), re.I)
+        except re.error:
+            pat = re.compile(re.escape(t.name.strip()), re.I)
+        return any(pat.search(s) for s in src)
+    return t.name.strip().lower() in low_all
 
 
 def frontend_blob(artifact: Path) -> str:
@@ -82,10 +111,33 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
     hittable = hittable_strings(blob)
     low_hit = [s.lower() for s in hittable]
     low_all = blob.lower()
+
+    fam_strs = _fam_strings(blob)
+
+    def _hits_by_family(t) -> bool:
+        """**按族取位置集合**判"正则靶子能不能命中"（PLAN 裁决五第 ③ 件）。
+
+        为什么要按族：两族的位置集合不同（实测见 `verify/hittable.py` 的表）——
+        混用会两个方向都误判：字段族的靶子会被 `<p>文本</p>` 骗过（`getByLabel` 不认它），
+        命名族的靶子会被 `placeholder="x"` 骗过（`textbox` 不在 8 个 role 里）。
+        """
+        from verify import hittable as H
+        fam = t.family or None
+        if fam and "+" in fam:          # 两族都试（该 helper 同时消费两族）
+            return any(H.matches(t.name.strip(), blob, f) for f in fam.split("+"))
+        return H.matches(t.name.strip(), blob, fam)
     out = []
+    # ---- 析取组（mode=any）：`expectAnyVisible([a, b, c])` **任一个命中即可** ----
+    # 为什么必须成组（2026-09-23 实测，ctrip）：把析取当合取会凭空要求产物多显示几个词（假阳性方向）。
+    any_group: dict[str, list] = {}
+    for t in targets:
+        if t.mode == "any" and t.kind in NEED_KINDS and t.name:
+            any_group.setdefault(t.group or t.where, []).append(t)   # 按「要求单元」分组
     for t in targets:
         if t.kind not in NEED_KINDS or not t.name:
             continue
+        if t.mode == "any":
+            continue     # **析取单元只由下面那一遍成组判**（逐条判会把"任一即可"读成"每个都要"）
         needle = t.name.strip()
         if t.kind == "css":
             needle = needle.lstrip(".#").split(":")[0]
@@ -99,11 +151,21 @@ def missing_targets(targets: list[ts.Target], blob: str) -> list[ts.Target]:
                 pat = re.compile(needle, re.I)
             except re.error:
                 pat = re.compile(re.escape(needle), re.I)
-            if not any(pat.search(s) for s in hittable):
+            src = hittable
+            if getattr(t, "family", ""):
+                src = [x for f in t.family.split("+") for x in fam_strs.get(f, ())]
+            if not any(pat.search(s) for s in src):
                 out.append(t)
             continue
         if needle.lower() not in low_all:           # 精确名：沿用"源码里出现过"
             out.append(t)
+    # ---- any 组的收口：组内**任一个**命中 → 这组通过；全不命中 → 整组算缺 ----
+    failed_groups = []
+    for where_, group in any_group.items():
+        if not any(_hits(x, hittable, low_all, fam_strs) for x in group):
+            failed_groups.append(where_)
+            out.append(group[0])                    # 报一条带组信息的代表项
+    out = [x for i, x in enumerate(out) if x not in out[:i]]
     return out, hittable, bool(RE_ATTR_EXPR.search(blob))
 
 

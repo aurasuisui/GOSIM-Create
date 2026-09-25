@@ -26,6 +26,7 @@ from pathlib import Path
 from generate.schema import (
     BEGIN_MARK, INIT_DB_REL, SCHEMA_REL, read_schema_statements,
 )
+from verify import hittable
 from verify.jsscan import scan
 
 FRONTEND_EXT = (".ts", ".tsx", ".js", ".jsx")
@@ -172,7 +173,15 @@ def check_routes_and_links(output_dir: Path, requirement_brief: str) -> list[dic
 
 
 def check_accessible_names(output_dir: Path, required_names: list[str]) -> list[dict]:
-    """需求声明的可访问名，至少要能在前端源码里出现（否则实现根本没打算兑现它）。"""
+    """需求声明的可访问名，至少要能在前端源码里出现（否则实现根本没打算兑现它）。
+
+    🔴 **正则体走"可命中性"判据，不走字面子串**（`PLAN.md` 裁决四，2026-09-23 拍板）。
+    为什么：`ctrip` 第二轮把 `'邮箱.*用户名.*手机号'`（**正则链的源码**）当"逐字硬名"注入，
+    而字面子串检查**永远追不到**它 —— 契约不可能满足 → 闭环 3 轮全 ❌、**17,281 token = 52%**；
+    而产物里其实有 `<p>邮箱/用户名/手机号</p>`（同一元素、按序），**判据的正则会命中**。
+    → 判据要的是"能被某个 locator 命中"，那就**照判据的口径判**（`verify/hittable.py`，
+    与 ③ 共用同一实现）。纯字面名**行为与今天完全一致**（子串）。
+    """
     findings: list[dict] = []
     front = output_dir / "frontend/src"
     blob = ""
@@ -180,7 +189,19 @@ def check_accessible_names(output_dir: Path, required_names: list[str]) -> list[
         blob = "\n".join(f.read_text(encoding="utf-8", errors="replace") for f in front.rglob("*")
                          if f.is_file() and f.suffix in FRONTEND_EXT)
     for name in required_names:
-        if name and name not in blob:
+        if not name:
+            continue
+        if hittable.is_regex_body(name):          # 正则体 → 可命中性
+            if hittable.matches(name, blob):
+                continue
+            findings.append({
+                "kind": "accessible-name-missing", "file": "frontend/src",
+                "detail": (f"需求声明的可访问名（**正则体**）{name!r} 没有任何**可命中的位置**能匹配它"
+                           "（文本节点 / aria-label / title / placeholder；`name` 属性**不算**位置）"),
+                "hint": "渲染成能被这个正则匹配的串（例如把 .* 写成 / 或空格），且**整串落在同一个元素**",
+            })
+            continue
+        if name not in blob:                      # 字面名 → 与今天完全一致
             findings.append({
                 "kind": "accessible-name-missing", "file": "frontend/src",
                 "detail": f"需求声明的可访问名 {name!r} 在前端源码里一次都没出现",

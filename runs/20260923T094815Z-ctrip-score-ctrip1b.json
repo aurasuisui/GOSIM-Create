@@ -1,0 +1,1090 @@
+{
+  "run_id": "20260923T094815Z-ctrip-score-ctrip1b.judges",
+  "arm_id": "ctrip1b",
+  "round": 1,
+  "change_description": "阶梯④：ctrip 第一轮（子集 {REQ-2.2}「Open Login Entry」，官方档 deepseek-chat，闭环 ON）。子集按 §7 ② 的规则定（helper 最少的候选里，闭包最小、未覆盖栏最小）；未覆盖 = `clickIfVisible` 的候选对（账号登录 / password login）→ **注入一个**（账号登录，与它自己的中文需求一致）；生成 26,302 token，第 1 轮 L1 抓到注入名 → 修复 → 第 2 轮 0 条。⚠️ 本记录来自**重跑**：第一次判分跑到 71/125 被 MSYS fork 中断（已改名 .INVALID-interrupted，不计入任何通过数）。",
+  "captured_at": "2026-09-23T10:37:30Z",
+  "app": "ctrip",
+  "port": 3301,
+  "arc_test_date": "2026-09-20",
+  "model": "unknown",
+  "visual_model": null,
+  "ci_env": null,
+  "retries_effective": 0,
+  "load_snapshot": "status=free runners=0 port=free listeners=0",
+  "snapshot_note": "快照是**拿锁之前**采的（机器可读形式，来自 bench.sh verdict）：它是判分窗口开始那一刻的**外部世界**；窗口内本进程持锁，所以窗口中的 status 只反映自己",
+  "pipeline": {
+    "git_commit": "90d761af0aee63614eaa5172e3cb235fb638c3df",
+    "git_dirty": false,
+    "pipeline_dirty": false,
+    "git_branch": "work",
+    "git_subject": "STATUS：认领判分队列（prestashop n=2 → ctrip）+ 本轮在飞说明",
+    "attests": "product-birth",
+    "captured_at_product": "2026-09-23T07:48:34Z",
+    "app_hint": "ctrip",
+    "req_ids": [
+      "REQ-2.2"
+    ],
+    "generate_mode": "1",
+    "stage_seconds": 20.6,
+    "tokens_total": 26302,
+    "tokens_generation_only": 15825,
+    "verify_ran": true
+  },
+  "provenance_source": "stage-artifact",
+  "pipeline_at_record_time": {
+    "git_commit": "bed06912a8e54a5c730f88a0927e8e0001332e02",
+    "git_dirty": false,
+    "git_branch": "work",
+    "git_subject": "ctrip 判分被中断（第三次 MSYS fork 死法）：改名 .INVALID-interrupted + recover --force + 重跑；附机制级旁证（REQ-2.2 11.9s 挂，与 ③ 预测同向）"
+  },
+  "artifact_fingerprint": {
+    "git_commit": "90d761af0aee63614eaa5172e3cb235fb638c3df",
+    "code_clean": true,
+    "basis": "product-birth stamp（.arc/provenance.json），按 pipeline/ 判定",
+    "stamped_at_product": true
+  },
+  "bench_repo": {
+    "git_commit": "1eb018367bedd618d3b9ced406ce07fb423d4956",
+    "git_dirty": false,
+    "git_branch": "main",
+    "git_subject": "feat: add arc-bench-lite"
+  },
+  "requirements_sha256": "39c8b1453aa7fee0b8a969b4cf650cadd2862f8e1ae7d0ac8a6bc8f2d8239da4",
+  "log_path": "runs/20260923T094815Z-ctrip-score-ctrip1b.judges.log",
+  "tests_total": 125,
+  "tests_passed": 0,
+  "tests_failed": 125,
+  "tests_skipped": 0,
+  "tests_flaky": 0,
+  "pass_rate": 0.0,
+  "per_test_failed": [
+    {
+      "test_id": "REQ-0.spec.ts:7",
+      "req_id": "REQ-0.",
+      "spec_file": "REQ-0.spec.ts",
+      "title": "REQ-0: Open System ───────────────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-1.1.spec.ts:7",
+      "req_id": "REQ-1.1.",
+      "spec_file": "REQ-1.1.spec.ts",
+      "title": "REQ-1.1: Open Homepage ─────────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-10.1.1.spec.ts:7",
+      "req_id": "REQ-10.1.1.",
+      "spec_file": "REQ-10.1.1.spec.ts",
+      "title": "REQ-10.1.1: Enter Domestic Airport Directory",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-10.2.1.spec.ts:7",
+      "req_id": "REQ-10.2.1.",
+      "spec_file": "REQ-10.2.1.spec.ts",
+      "title": "REQ-10.2.1: Enter International Airport Directory",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.1.spec.ts:7",
+      "req_id": "REQ-2.1.",
+      "spec_file": "REQ-2.1.spec.ts",
+      "title": "REQ-2.1: Open Registration Entry",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.2.spec.ts:7",
+      "req_id": "REQ-2.2.",
+      "spec_file": "REQ-2.2.spec.ts",
+      "title": "REQ-2.2: Open Login Entry ──────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.3.1.spec.ts:7",
+      "req_id": "REQ-2.3.1.",
+      "spec_file": "REQ-2.3.1.spec.ts",
+      "title": "REQ-2.3.1: Enter Login Page ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.3.2.spec.ts:7",
+      "req_id": "REQ-2.3.2.",
+      "spec_file": "REQ-2.3.2.spec.ts",
+      "title": "REQ-2.3.2: Switch to Verification-Code Login",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.3.3.spec.ts:7",
+      "req_id": "REQ-2.3.3.",
+      "spec_file": "REQ-2.3.3.spec.ts",
+      "title": "REQ-2.3.3: Switch to Password Login",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.1.spec.ts:7",
+      "req_id": "REQ-2.4.1.",
+      "spec_file": "REQ-2.4.1.spec.ts",
+      "title": "REQ-2.4.1: Password Login Flow",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.2.spec.ts:7",
+      "req_id": "REQ-2.4.2.",
+      "spec_file": "REQ-2.4.2.spec.ts",
+      "title": "REQ-2.4.2: Exception: Username Missing",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.3.spec.ts:7",
+      "req_id": "REQ-2.4.3.",
+      "spec_file": "REQ-2.4.3.spec.ts",
+      "title": "REQ-2.4.3: Exception: Password Missing",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.4.spec.ts:7",
+      "req_id": "REQ-2.4.4.",
+      "spec_file": "REQ-2.4.4.spec.ts",
+      "title": "REQ-2.4.4: Exception: Incorrect Username or Password",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.4.5.spec.ts:7",
+      "req_id": "REQ-2.4.5.",
+      "spec_file": "REQ-2.4.5.spec.ts",
+      "title": "REQ-2.4.5: Exception: Agreement Not Accepted",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.1.spec.ts:7",
+      "req_id": "REQ-2.5.1.",
+      "spec_file": "REQ-2.5.1.spec.ts",
+      "title": "REQ-2.5.1: Verification-Code Login Flow",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.2.spec.ts:7",
+      "req_id": "REQ-2.5.2.",
+      "spec_file": "REQ-2.5.2.spec.ts",
+      "title": "REQ-2.5.2: Exception: Mobile Number Missing",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.3.spec.ts:7",
+      "req_id": "REQ-2.5.3.",
+      "spec_file": "REQ-2.5.3.spec.ts",
+      "title": "REQ-2.5.3: Exception: Verification Code Missing",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.4.spec.ts:7",
+      "req_id": "REQ-2.5.4.",
+      "spec_file": "REQ-2.5.4.spec.ts",
+      "title": "REQ-2.5.4: Exception: Incorrect Verification Code",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.5.5.spec.ts:7",
+      "req_id": "REQ-2.5.5.",
+      "spec_file": "REQ-2.5.5.spec.ts",
+      "title": "REQ-2.5.5: Exception: Agreement Not Accepted",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.1.spec.ts:7",
+      "req_id": "REQ-2.6.1.",
+      "spec_file": "REQ-2.6.1.spec.ts",
+      "title": "REQ-2.6.1: Enter Registration Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.2.1.spec.ts:7",
+      "req_id": "REQ-2.6.2.1.",
+      "spec_file": "REQ-2.6.2.1.spec.ts",
+      "title": "REQ-2.6.2.1: Trigger Registration Agreement",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.2.2.spec.ts:7",
+      "req_id": "REQ-2.6.2.2.",
+      "spec_file": "REQ-2.6.2.2.spec.ts",
+      "title": "REQ-2.6.2.2: Decline Registration Agreement",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.3.1.spec.ts:7",
+      "req_id": "REQ-2.6.3.1.",
+      "spec_file": "REQ-2.6.3.1.spec.ts",
+      "title": "REQ-2.6.3.1: Enter Verification Information",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.4.1.spec.ts:7",
+      "req_id": "REQ-2.6.4.1.",
+      "spec_file": "REQ-2.6.4.1.spec.ts",
+      "title": "REQ-2.6.4.1: Set Password and Complete Registration",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.4.2.spec.ts:7",
+      "req_id": "REQ-2.6.4.2.",
+      "spec_file": "REQ-2.6.4.2.spec.ts",
+      "title": "REQ-2.6.4.2: Exception: Passwords Do Not Match",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.6.4.3.spec.ts:7",
+      "req_id": "REQ-2.6.4.3.",
+      "spec_file": "REQ-2.6.4.3.spec.ts",
+      "title": "REQ-2.6.4.3: Exception: Password Too Weak",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-2.7.1.spec.ts:7",
+      "req_id": "REQ-2.7.1.",
+      "spec_file": "REQ-2.7.1.spec.ts",
+      "title": "REQ-2.7.1: Log Out ───────────",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.1.spec.ts:7",
+      "req_id": "REQ-3.2.1.",
+      "spec_file": "REQ-3.2.1.spec.ts",
+      "title": "REQ-3.2.1: Trip Type Selection",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.2.spec.ts:7",
+      "req_id": "REQ-3.2.2.",
+      "spec_file": "REQ-3.2.2.spec.ts",
+      "title": "REQ-3.2.2: Swap Origin and Destination",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.3.spec.ts:7",
+      "req_id": "REQ-3.2.3.",
+      "spec_file": "REQ-3.2.3.spec.ts",
+      "title": "REQ-3.2.3: Exception: Same-City Validation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.4.spec.ts:7",
+      "req_id": "REQ-3.2.4.",
+      "spec_file": "REQ-3.2.4.spec.ts",
+      "title": "REQ-3.2.4: Exception: Past-Date Validation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.5.1.spec.ts:7",
+      "req_id": "REQ-3.2.5.1.",
+      "spec_file": "REQ-3.2.5.1.spec.ts",
+      "title": "REQ-3.2.5.1: Select a Hot City",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.5.2.spec.ts:7",
+      "req_id": "REQ-3.2.5.2.",
+      "spec_file": "REQ-3.2.5.2.spec.ts",
+      "title": "REQ-3.2.5.2: Find Cities by Pinyin Group",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.6.1.spec.ts:7",
+      "req_id": "REQ-3.2.6.1.",
+      "spec_file": "REQ-3.2.6.1.spec.ts",
+      "title": "REQ-3.2.6.1: Select Departure Date",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.6.2.spec.ts:7",
+      "req_id": "REQ-3.2.6.2.",
+      "spec_file": "REQ-3.2.6.2.spec.ts",
+      "title": "REQ-3.2.6.2: Select a Past Date",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.7.1.spec.ts:7",
+      "req_id": "REQ-3.2.7.1.",
+      "spec_file": "REQ-3.2.7.1.spec.ts",
+      "title": "REQ-3.2.7.1: Enable Return Trip",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.2.7.2.spec.ts:7",
+      "req_id": "REQ-3.2.7.2.",
+      "spec_file": "REQ-3.2.7.2.spec.ts",
+      "title": "REQ-3.2.7.2: Exception: Return Date Earlier Than Departure",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.1.spec.ts:7",
+      "req_id": "REQ-3.3.1.",
+      "spec_file": "REQ-3.3.1.spec.ts",
+      "title": "REQ-3.3.1: Configure Special Passengers",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.3.2.spec.ts:7",
+      "req_id": "REQ-3.3.2.",
+      "spec_file": "REQ-3.3.2.spec.ts",
+      "title": "REQ-3.3.2: Filter by Cabin Class",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.1.spec.ts:7",
+      "req_id": "REQ-3.4.1.",
+      "spec_file": "REQ-3.4.1.spec.ts",
+      "title": "REQ-3.4.1: Run a Standard Search",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.4.2.spec.ts:7",
+      "req_id": "REQ-3.4.2.",
+      "spec_file": "REQ-3.4.2.spec.ts",
+      "title": "REQ-3.4.2: Quickly Reuse Search History",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.1.1.spec.ts:7",
+      "req_id": "REQ-3.5.1.1.",
+      "spec_file": "REQ-3.5.1.1.spec.ts",
+      "title": "REQ-3.5.1.1: Modify Search Criteria",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.2.1.spec.ts:7",
+      "req_id": "REQ-3.5.2.1.",
+      "spec_file": "REQ-3.5.2.1.spec.ts",
+      "title": "REQ-3.5.2.1: Switch to a Nearby Date",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.2.2.spec.ts:7",
+      "req_id": "REQ-3.5.2.2.",
+      "spec_file": "REQ-3.5.2.2.spec.ts",
+      "title": "REQ-3.5.2.2: View More Dates",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.2.3.spec.ts:7",
+      "req_id": "REQ-3.5.2.3.",
+      "spec_file": "REQ-3.5.2.3.spec.ts",
+      "title": "REQ-3.5.2.3: Switch to Next Week",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.3.1.spec.ts:7",
+      "req_id": "REQ-3.5.3.1.",
+      "spec_file": "REQ-3.5.3.1.spec.ts",
+      "title": "REQ-3.5.3.1: Combined Filters",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.3.2.spec.ts:7",
+      "req_id": "REQ-3.5.3.2.",
+      "spec_file": "REQ-3.5.3.2.spec.ts",
+      "title": "REQ-3.5.3.2: Sort by Price ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.3.3.spec.ts:7",
+      "req_id": "REQ-3.5.3.3.",
+      "spec_file": "REQ-3.5.3.3.spec.ts",
+      "title": "REQ-3.5.3.3: Sort by On-Time Performance",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.3.4.spec.ts:7",
+      "req_id": "REQ-3.5.3.4.",
+      "spec_file": "REQ-3.5.3.4.spec.ts",
+      "title": "REQ-3.5.3.4: Sort by Departure Time",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.4.1.spec.ts:7",
+      "req_id": "REQ-3.5.4.1.",
+      "spec_file": "REQ-3.5.4.1.spec.ts",
+      "title": "REQ-3.5.4.1: Expand/Collapse Flight Details",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.4.2.spec.ts:7",
+      "req_id": "REQ-3.5.4.2.",
+      "spec_file": "REQ-3.5.4.2.spec.ts",
+      "title": "REQ-3.5.4.2: Select a Fare and Book",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-3.5.4.3.spec.ts:7",
+      "req_id": "REQ-3.5.4.3.",
+      "spec_file": "REQ-3.5.4.3.spec.ts",
+      "title": "REQ-3.5.4.3: Exception: No Search Results",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.1.1.spec.ts:7",
+      "req_id": "REQ-4.1.1.1.",
+      "spec_file": "REQ-4.1.1.1.spec.ts",
+      "title": "REQ-4.1.1.1: View Reminder Details",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.2.1.spec.ts:7",
+      "req_id": "REQ-4.1.2.1.",
+      "spec_file": "REQ-4.1.2.1.spec.ts",
+      "title": "REQ-4.1.2.1: Quickly Select Passengers",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.3.1.spec.ts:7",
+      "req_id": "REQ-4.1.3.1.",
+      "spec_file": "REQ-4.1.3.1.spec.ts",
+      "title": "REQ-4.1.3.1: Enter ID Information (Normal Flow)",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.3.2.spec.ts:7",
+      "req_id": "REQ-4.1.3.2.",
+      "spec_file": "REQ-4.1.3.2.spec.ts",
+      "title": "REQ-4.1.3.2: Exception: Invalid ID Number Format",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.4.1.spec.ts:7",
+      "req_id": "REQ-4.1.4.1.",
+      "spec_file": "REQ-4.1.4.1.spec.ts",
+      "title": "REQ-4.1.4.1: Trigger Add Passenger",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.5.1.spec.ts:7",
+      "req_id": "REQ-4.1.5.1.",
+      "spec_file": "REQ-4.1.5.1.spec.ts",
+      "title": "REQ-4.1.5.1: Modify Contact Mobile Number",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.1.6.1.spec.ts:7",
+      "req_id": "REQ-4.1.6.1.",
+      "spec_file": "REQ-4.1.6.1.spec.ts",
+      "title": "REQ-4.1.6.1: Real-Time Fee Calculation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.1.1.spec.ts:7",
+      "req_id": "REQ-4.2.1.1.",
+      "spec_file": "REQ-4.2.1.1.spec.ts",
+      "title": "REQ-4.2.1.1: Add Combo Insurance",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.1.2.spec.ts:7",
+      "req_id": "REQ-4.2.1.2.",
+      "spec_file": "REQ-4.2.1.2.spec.ts",
+      "title": "REQ-4.2.1.2: View Insurance Terms",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.2.1.spec.ts:7",
+      "req_id": "REQ-4.2.2.1.",
+      "spec_file": "REQ-4.2.2.1.spec.ts",
+      "title": "REQ-4.2.2.1: View Free Baggage Allowance",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.2.2.spec.ts:7",
+      "req_id": "REQ-4.2.2.2.",
+      "spec_file": "REQ-4.2.2.2.spec.ts",
+      "title": "REQ-4.2.2.2: Purchase Extra Baggage Allowance",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.3.1.spec.ts:7",
+      "req_id": "REQ-4.2.3.1.",
+      "spec_file": "REQ-4.2.3.1.spec.ts",
+      "title": "REQ-4.2.3.1: Reserve an Airport Drop-Off Service",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.4.1.spec.ts:7",
+      "req_id": "REQ-4.2.4.1.",
+      "spec_file": "REQ-4.2.4.1.spec.ts",
+      "title": "REQ-4.2.4.1: Purchase Lounge Service",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.5.1.spec.ts:7",
+      "req_id": "REQ-4.2.5.1.",
+      "spec_file": "REQ-4.2.5.1.spec.ts",
+      "title": "REQ-4.2.5.1: Linked Pricing for Value-Added Services",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.2.5.2.spec.ts:7",
+      "req_id": "REQ-4.2.5.2.",
+      "spec_file": "REQ-4.2.5.2.spec.ts",
+      "title": "REQ-4.2.5.2: Auto Deduction When Removing Services",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.1.spec.ts:7",
+      "req_id": "REQ-4.3.1.",
+      "spec_file": "REQ-4.3.1.spec.ts",
+      "title": "REQ-4.3.1: Payment Countdown Reminder",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.3.2.spec.ts:7",
+      "req_id": "REQ-4.3.2.",
+      "spec_file": "REQ-4.3.2.spec.ts",
+      "title": "REQ-4.3.2: Select Payment Method",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.1.spec.ts:7",
+      "req_id": "REQ-4.4.1.",
+      "spec_file": "REQ-4.4.1.spec.ts",
+      "title": "REQ-4.4.1: Enter Order Center",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.2.1.spec.ts:7",
+      "req_id": "REQ-4.4.2.1.",
+      "spec_file": "REQ-4.4.2.1.spec.ts",
+      "title": "REQ-4.4.2.1: Switch to Pending Payment",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.2.2.spec.ts:7",
+      "req_id": "REQ-4.4.2.2.",
+      "spec_file": "REQ-4.4.2.2.spec.ts",
+      "title": "REQ-4.4.2.2: Switch to Not Traveled",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.2.3.spec.ts:7",
+      "req_id": "REQ-4.4.2.3.",
+      "spec_file": "REQ-4.4.2.3.spec.ts",
+      "title": "REQ-4.4.2.3: Switch to Pending Review",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.2.4.spec.ts:7",
+      "req_id": "REQ-4.4.2.4.",
+      "spec_file": "REQ-4.4.2.4.spec.ts",
+      "title": "REQ-4.4.2.4: Switch to All Orders",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.3.1.spec.ts:7",
+      "req_id": "REQ-4.4.3.1.",
+      "spec_file": "REQ-4.4.3.1.spec.ts",
+      "title": "REQ-4.4.3.1: Search Historical Orders",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.4.4.1.spec.ts:7",
+      "req_id": "REQ-4.4.4.1.",
+      "spec_file": "REQ-4.4.4.1.spec.ts",
+      "title": "REQ-4.4.4.1: View Order Details",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.1.1.spec.ts:7",
+      "req_id": "REQ-4.5.1.1.",
+      "spec_file": "REQ-4.5.1.1.spec.ts",
+      "title": "REQ-4.5.1.1: Pending Payment Countdown",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.1.2.spec.ts:7",
+      "req_id": "REQ-4.5.1.2.",
+      "spec_file": "REQ-4.5.1.2.spec.ts",
+      "title": "REQ-4.5.1.2: Cancel a Pending Payment Order",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-4.5.2.1.spec.ts:7",
+      "req_id": "REQ-4.5.2.1.",
+      "spec_file": "REQ-4.5.2.1.spec.ts",
+      "title": "REQ-4.5.2.1: View Refund/Change Rules",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.1.spec.ts:7",
+      "req_id": "REQ-5.1.",
+      "spec_file": "REQ-5.1.spec.ts",
+      "title": "REQ-5.1: Enter Personal Center ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.2.spec.ts:7",
+      "req_id": "REQ-5.2.",
+      "spec_file": "REQ-5.2.spec.ts",
+      "title": "REQ-5.2: Expand/Collapse Common Information",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.1.1.spec.ts:7",
+      "req_id": "REQ-5.3.1.1.",
+      "spec_file": "REQ-5.3.1.1.spec.ts",
+      "title": "REQ-5.3.1.1: Search for a Traveler",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.1.2.spec.ts:7",
+      "req_id": "REQ-5.3.1.2.",
+      "spec_file": "REQ-5.3.1.2.spec.ts",
+      "title": "REQ-5.3.1.2: No Matching Traveler Found",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.2.1.spec.ts:7",
+      "req_id": "REQ-5.3.2.1.",
+      "spec_file": "REQ-5.3.2.1.spec.ts",
+      "title": "REQ-5.3.2.1: Create a New Traveler",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.2.2.spec.ts:7",
+      "req_id": "REQ-5.3.2.2.",
+      "spec_file": "REQ-5.3.2.2.spec.ts",
+      "title": "REQ-5.3.2.2: Exception: Required-Field Validation",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.3.1.spec.ts:7",
+      "req_id": "REQ-5.3.3.1.",
+      "spec_file": "REQ-5.3.3.1.spec.ts",
+      "title": "REQ-5.3.3.1: Delete a Traveler Record",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.3.3.2.spec.ts:7",
+      "req_id": "REQ-5.3.3.2.",
+      "spec_file": "REQ-5.3.3.2.spec.ts",
+      "title": "REQ-5.3.3.2: Batch Delete ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.1.1.spec.ts:7",
+      "req_id": "REQ-5.4.1.1.",
+      "spec_file": "REQ-5.4.1.1.spec.ts",
+      "title": "REQ-5.4.1.1: View Address List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.2.1.spec.ts:7",
+      "req_id": "REQ-5.4.2.1.",
+      "spec_file": "REQ-5.4.2.1.spec.ts",
+      "title": "REQ-5.4.2.1: Save a New Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.3.1.spec.ts:7",
+      "req_id": "REQ-5.4.3.1.",
+      "spec_file": "REQ-5.4.3.1.spec.ts",
+      "title": "REQ-5.4.3.1: Delete a Single Address",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.4.3.2.spec.ts:7",
+      "req_id": "REQ-5.4.3.2.",
+      "spec_file": "REQ-5.4.3.2.spec.ts",
+      "title": "REQ-5.4.3.2: Batch Delete Addresses",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.1.1.spec.ts:7",
+      "req_id": "REQ-5.5.1.1.",
+      "spec_file": "REQ-5.5.1.1.spec.ts",
+      "title": "REQ-5.5.1.1: Search Contacts",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.1.2.spec.ts:7",
+      "req_id": "REQ-5.5.1.2.",
+      "spec_file": "REQ-5.5.1.2.spec.ts",
+      "title": "REQ-5.5.1.2: Batch Delete ──",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.2.1.spec.ts:7",
+      "req_id": "REQ-5.5.2.1.",
+      "spec_file": "REQ-5.5.2.1.spec.ts",
+      "title": "REQ-5.5.2.1: Add a Default Contact",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.3.1.spec.ts:7",
+      "req_id": "REQ-5.5.3.1.",
+      "spec_file": "REQ-5.5.3.1.spec.ts",
+      "title": "REQ-5.5.3.1: Delete a Single Contact",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.5.3.2.spec.ts:7",
+      "req_id": "REQ-5.5.3.2.",
+      "spec_file": "REQ-5.5.3.2.spec.ts",
+      "title": "REQ-5.5.3.2: Batch Delete Contacts",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.1.1.spec.ts:7",
+      "req_id": "REQ-5.6.1.1.",
+      "spec_file": "REQ-5.6.1.1.spec.ts",
+      "title": "REQ-5.6.1.1: Search Invoice Titles",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.2.1.spec.ts:7",
+      "req_id": "REQ-5.6.2.1.",
+      "spec_file": "REQ-5.6.2.1.spec.ts",
+      "title": "REQ-5.6.2.1: Add a Company Invoice Title",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.2.2.spec.ts:7",
+      "req_id": "REQ-5.6.2.2.",
+      "spec_file": "REQ-5.6.2.2.spec.ts",
+      "title": "REQ-5.6.2.2: Configure Special VAT Invoice",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.3.1.spec.ts:7",
+      "req_id": "REQ-5.6.3.1.",
+      "spec_file": "REQ-5.6.3.1.spec.ts",
+      "title": "REQ-5.6.3.1: Delete a Single Receipt",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-5.6.3.2.spec.ts:7",
+      "req_id": "REQ-5.6.3.2.",
+      "spec_file": "REQ-5.6.3.2.spec.ts",
+      "title": "REQ-5.6.3.2: Batch Delete Receipts",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.1.1.spec.ts:7",
+      "req_id": "REQ-6.1.1.",
+      "spec_file": "REQ-6.1.1.spec.ts",
+      "title": "REQ-6.1.1: View Basic Profile Information",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.2.1.spec.ts:7",
+      "req_id": "REQ-6.2.1.",
+      "spec_file": "REQ-6.2.1.spec.ts",
+      "title": "REQ-6.2.1: Update Profile and Save",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.3.1.spec.ts:7",
+      "req_id": "REQ-6.3.1.",
+      "spec_file": "REQ-6.3.1.spec.ts",
+      "title": "REQ-6.3.1: Enter Security Center",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.4.1.spec.ts:7",
+      "req_id": "REQ-6.4.1.",
+      "spec_file": "REQ-6.4.1.spec.ts",
+      "title": "REQ-6.4.1: Standard Password Change Flow",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.5.1.spec.ts:7",
+      "req_id": "REQ-6.5.1.",
+      "spec_file": "REQ-6.5.1.spec.ts",
+      "title": "REQ-6.5.1: Verify Identity and Bind New Phone",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-6.6.1.spec.ts:7",
+      "req_id": "REQ-6.6.1.",
+      "spec_file": "REQ-6.6.1.spec.ts",
+      "title": "REQ-6.6.1: Email Verification Flow",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.1.spec.ts:7",
+      "req_id": "REQ-7.1.",
+      "spec_file": "REQ-7.1.spec.ts",
+      "title": "REQ-7.1: Enter Flight Status Page",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.1.1.spec.ts:7",
+      "req_id": "REQ-7.2.1.1.",
+      "spec_file": "REQ-7.2.1.1.spec.ts",
+      "title": "REQ-7.2.1.1: Exact Flight Number Query",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.2.1.spec.ts:7",
+      "req_id": "REQ-7.2.2.1.",
+      "spec_file": "REQ-7.2.2.1.spec.ts",
+      "title": "REQ-7.2.2.1: Route Range Query",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.2.2.spec.ts:7",
+      "req_id": "REQ-7.2.2.2.",
+      "spec_file": "REQ-7.2.2.2.spec.ts",
+      "title": "REQ-7.2.2.2: Swap Origin and Destination",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.3.1.spec.ts:7",
+      "req_id": "REQ-7.2.3.1.",
+      "spec_file": "REQ-7.2.3.1.spec.ts",
+      "title": "REQ-7.2.3.1: Use History ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.2.3.2.spec.ts:7",
+      "req_id": "REQ-7.2.3.2.",
+      "spec_file": "REQ-7.2.3.2.spec.ts",
+      "title": "REQ-7.2.3.2: Clear History ─",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.3.1.1.spec.ts:7",
+      "req_id": "REQ-7.3.1.1.",
+      "spec_file": "REQ-7.3.1.1.spec.ts",
+      "title": "REQ-7.3.1.1: View Flight Status in List",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-7.3.2.1.spec.ts:7",
+      "req_id": "REQ-7.3.2.1.",
+      "spec_file": "REQ-7.3.2.1.spec.ts",
+      "title": "REQ-7.3.2.1: View Detailed Status",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.1.1.1.spec.ts:7",
+      "req_id": "REQ-8.1.1.1.",
+      "spec_file": "REQ-8.1.1.1.spec.ts",
+      "title": "REQ-8.1.1.1: Switch to Completed",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.1.spec.ts:7",
+      "req_id": "REQ-8.2.1.",
+      "spec_file": "REQ-8.2.1.spec.ts",
+      "title": "REQ-8.2.1: View Eligible Orders",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-8.2.2.spec.ts:7",
+      "req_id": "REQ-8.2.2.",
+      "spec_file": "REQ-8.2.2.spec.ts",
+      "title": "REQ-8.2.2: Find More Historical Orders",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.1.spec.ts:7",
+      "req_id": "REQ-9.1.",
+      "spec_file": "REQ-9.1.spec.ts",
+      "title": "REQ-9.1: Enter Airport Guide ───",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.2.1.1.spec.ts:7",
+      "req_id": "REQ-9.2.1.1.",
+      "spec_file": "REQ-9.2.1.1.spec.ts",
+      "title": "REQ-9.2.1.1: Browse Popular Airports",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.2.1.2.spec.ts:7",
+      "req_id": "REQ-9.2.1.2.",
+      "spec_file": "REQ-9.2.1.2.spec.ts",
+      "title": "REQ-9.2.1.2: Find via Alphabet Index",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.2.2.1.spec.ts:7",
+      "req_id": "REQ-9.2.2.1.",
+      "spec_file": "REQ-9.2.2.1.spec.ts",
+      "title": "REQ-9.2.2.1: View Travel Weather",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.3.1.1.spec.ts:7",
+      "req_id": "REQ-9.3.1.1.",
+      "spec_file": "REQ-9.3.1.1.spec.ts",
+      "title": "REQ-9.3.1.1: View Airport Overview",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.3.2.1.spec.ts:7",
+      "req_id": "REQ-9.3.2.1.",
+      "spec_file": "REQ-9.3.2.1.spec.ts",
+      "title": "REQ-9.3.2.1: Check Shuttle Bus Timetable",
+      "ok": false,
+      "failure_class": "timeout"
+    },
+    {
+      "test_id": "REQ-9.3.3.1.spec.ts:7",
+      "req_id": "REQ-9.3.3.1.",
+      "spec_file": "REQ-9.3.3.1.spec.ts",
+      "title": "REQ-9.3.3.1: Find First Aid Phone Number",
+      "ok": false,
+      "failure_class": "timeout"
+    }
+  ],
+  "per_test_passed": [],
+  "log_total_running": 125,
+  "failure_class_counts": {
+    "timeout": 125
+  },
+  "retries_observed": 0,
+  "has_summary": true,
+  "predicted": {
+    "source": "%TEMP%/ctrip1/predict.txt（**判分之前**落盘）",
+    "specs": [
+      {
+        "spec": "REQ-2.2.spec.ts",
+        "predicted": "fail",
+        "closure_targets": 15,
+        "need_display": 10,
+        "coverage": "9/9（100%）",
+        "missing_units": [
+          "clickIfVisible 候选对（账号登录 / password login）",
+          "expectPasswordLoginForm 的「邮箱/用户名/手机号」单元"
+        ]
+      }
+    ],
+    "predicted_pass": 0,
+    "predicted_fail": 1,
+    "note": "③ 只当信息（阈值待方案复核）；本字段进 9/24 的 B_pred"
+  },
+  "notes": "【读数：这是**第一个没拿到非零**的 app】**0 / 125**（全部 timeout；重跑 1.4 小时）。⇒ 阶梯的「6 个都非零」现在停在 **4/6**（keep / bookstack / stackoverflow / prestashop），ctrip 与 12306 待拿。⚠️ 判定口径：这一轮**不是**「跑了但没分」，是**子集那条自己就挂了**（`REQ-2.2` 11.7s 失败）——而 ③ 在判分前**就预测了它会挂**（预注册第 ② 格命中）。\n\n【机制已钉住（回产物 + 判据日志核过）】产物**渲染了** 登录 / **账号登录** / 用户名 / 密码（注入的 `账号登录` 在 ✅），但判据要的是**能被 locator 命中的那个 pattern**：失败行是 `getByRole('button', { name: /邮箱.*用户名.*手机号/ }).first()` 与 `.../注册/...` —— 即 `expectPasswordLoginForm` 的**每个要求单元**都要有一个**可命中的**元素，而单元里的候选是**复合串**（`邮箱.*用户名.*手机号` / `email.*username.*mobile` / `account`），产物只有「用户名」这种**片段**，匹配不上。→ **不是「没做」，是「没按判据要求的串写」**，与 prestashop 的「译了」同属**契约类**问题（PLAN §7 的第三类契约管逐字；这条更进一步：**复合 pattern**）。\n\n【下一轮的靶子已经明确（零 token 就能给）】③ 的 unreachable 列表就是**硬清单的输入**：把 `邮箱.*用户名.*手机号` / `注册` 这些**单元**（而非单个词）交给 `PIPELINE_EXTRA_HARD_NAMES`，并在 prompt 里说明「单元 = 一个元素的可访问名要匹配这个 pattern」。⚠️ 这正是方案会话在拍的那条「③ 的 unreachable 回灌硬清单」——**本轮不自己拍**，只把案例钉在这里。\n\n【口径】0/125 同样不能当「能力」读（其余 124 条属子集外）；它的用途是：**第五个 app 还没非零**，阶梯还差 ctrip 与 12306。"
+}

@@ -167,6 +167,22 @@ def _count_by(items: list[dict], key: str) -> dict:
 
 # ---------- 环境指纹 ----------
 
+def subject_of(commit: str | None, repo: Path) -> str | None:
+    """按 commit 反查 subject（出生处没记 subject 的老产物走这条）。
+
+    ⚠️ **只对仍然可达的 commit 有效**：历史重排/阶段合并之后，旧 hash 查不到 → 返回 None。
+    这正是"要连 subject 一起记"的原因（第三十轮审核 §三 A）——但**查不到就写 None，别编**。
+    """
+    if not commit:
+        return None
+    try:
+        r = subprocess.run(["git", "-C", str(repo), "log", "-1", "--format=%s", commit],
+                           capture_output=True, text=True, timeout=10)
+        return r.stdout.strip() or None if r.returncode == 0 else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def git_info(path: Path) -> dict:
     def run(*args):
         try:
@@ -182,6 +198,7 @@ def git_info(path: Path) -> dict:
         "git_commit": commit,
         "git_dirty": bool(run("status", "--porcelain")),
         "git_branch": run("rev-parse", "--abbrev-ref", "HEAD"),
+        "git_subject": run("log", "-1", "--format=%s"),   # 跨重排活下来的那半（见 provenance.py）
     }
 
 
@@ -230,6 +247,8 @@ def _pipeline_block(prov: dict | None, root: Path) -> dict:
             # 而它只在产物的 `.arc/provenance.json` 里（于是"要判它就得去翻产物"）。
             "pipeline_dirty": prov.get("pipeline_dirty"),
             "git_branch": prov.get("git_branch"),
+            # subject 跨"历史重排/阶段合并"活下来（hash 不会）——见 provenance.py 的说明
+            "git_subject": prov.get("git_subject") or subject_of(prov.get("git_commit"), root),
             "attests": "product-birth",              # 这个值说的是"产出它的代码"
             "captured_at_product": prov.get("written_at"),
             "app_hint": prov.get("app_hint"),

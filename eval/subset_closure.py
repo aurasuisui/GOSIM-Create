@@ -168,9 +168,22 @@ def main() -> int:
         cov_all.add(cov)
         concrete = [t for t in targets if t.kind in CONCRETE_KINDS and t.name]
         uncovered = []
+        # **析取组**（mode=any，`expectAnyVisible([a,b,c])`）：组内任一个被需求点名即算覆盖
+        any_groups: dict[str, list] = {}
+        for t in concrete:
+            if t.mode == "any":
+                any_groups.setdefault(t.group or t.where, []).append(t)   # 按「要求单元」分组
+        group_ok: dict[str, bool] = {}
+        for where_, group in any_groups.items():
+            group_ok[where_] = any(
+                (covered_in_subset(x.name, stexts) if stexts else covered_in_requirements(x.name, files))
+                for x in group)
         for t in concrete:
             key = f"{t.kind}:{t.name}"
-            in_subset = covered_in_subset(t.name, stexts) if stexts else covered_in_requirements(t.name, files)
+            if t.mode == "any":
+                in_subset = group_ok.get(t.group or t.where, False)
+            else:
+                in_subset = (covered_in_subset(t.name, stexts) if stexts else covered_in_requirements(t.name, files))
             (covered_all if in_subset else uncovered_all)[key] = t
             if key in uncovered_all:
                 uncovered.append(t)
@@ -183,7 +196,8 @@ def main() -> int:
             print("      ⚠️ 具体靶子 0 个但闭包非空 —— 先查实参抽取（正则字面量/变量名都可能漏）")
         print(f"     未被需求覆盖 {len(uncovered)} 个")
         for t in uncovered[:8]:
-            print(f"       ✗ [{t.kind}{'/' + t.role if t.role else ''}] {t.name!r}  ← {t.where}")
+            tag = " ⚠️任一即可（析取组）" if t.mode == "any" else ""
+            print(f"       ✗ [{t.kind}{'/' + t.role if t.role else ''}] {t.name!r}  ← {t.where}{tag}")
         if len(uncovered) > 8:
             print(f"       … 其余 {len(uncovered) - 8} 个")
 
@@ -212,21 +226,21 @@ def main() -> int:
     if need_uncov:
         for key, t in sorted(need_uncov.items()):
             print(f"       · [{t.kind}{'/' + t.role if t.role else ''}] {t.name!r}"
-                  f"   （来自 {t.where}）")
+                  f"   （族={t.family or '?'}；来自 {t.where}）")
     else:
         print("       （空 —— 需要显示的靶子都被需求文本点名了）")
 
     print("\n    🟡 测试会**自己输入**的值（产物不必预先包含；但表单要能接住、并在页面上显示出来）：")
     if buckets["input"]:
         for key, t in sorted(buckets["input"].items()):
-            print(f"       · [{t.kind}] {t.name!r}   （来自 {t.where}）")
+            print(f"       · [{t.kind}] {t.name!r}   （族={t.family or '?'}；来自 {t.where}）")
     else:
         print("       （空）")
 
     if buckets["other"]:
         print("\n    ❓ 无法分类（helper 名不在动词表里）→ **人工看一眼**，别默默当没事：")
         for key, t in sorted(buckets["other"].items()):
-            print(f"       · [{t.kind}] {t.name!r}   （来自 {t.where}）")
+            print(f"       · [{t.kind}] {t.name!r}   （族={t.family or '?'}；来自 {t.where}）")
     return 0
 
 
