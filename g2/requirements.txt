@@ -1,0 +1,5 @@
+# g2 提交包的 Python 依赖。
+# 契约（旧管线实测）：平台在跑 agent **之前**按本文件装依赖，**那一阶段有网络**；
+# agent 真正跑起来之后没有网络 → 所以这里只列真的用到的，宁少勿多。
+pyyaml      # 需求树 YAML 解析（app/reqcomp/loader.py）
+requests    # 模型网关调用（app/gen/llm.py）
