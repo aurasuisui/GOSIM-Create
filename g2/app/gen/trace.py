@@ -52,8 +52,14 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
         if not nid:
             continue
         req_ids.append(nid)
+        # ⚠️ 字段要对齐**官方 SDK**（`arcbench_agent_runtime.traceability`）：
+        #    它每条记录都带 `updated_at`，requirements 还带 `visual_reference`。
+        #    我第一版只写了"必需字段" → 平台侧节点状态仍显示 design（实测），
+        #    而 `feature_implementation_rate` 一直是 0.0 —— 格式不齐很可能就是原因。
         tables["requirements"][nid] = {
             "req_id": nid,
+            "updated_at": _ts(),
+            "visual_reference": [],
             "name": str(getattr(node, "title", "") or getattr(node, "name", "") or nid),
             "description": str(getattr(node, "description", "") or "")[:2000],
             "parent_id": str(getattr(node, "parent_id", "") or "") or None,
@@ -65,6 +71,7 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
                      for st in (getattr(sc, "steps", []) or [])]
             tables["scenarios"][sc_id] = {"scenario_id": sc_id, "req_id": nid,
                                           "name": str(getattr(sc, "name", "") or sc_id),
+                                          "updated_at": _ts(),
                                           "steps": steps}
 
     # ---- 接口：API 端点 + 前端页面（**实现即登记为 implemented**）----
@@ -83,6 +90,7 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
         fp = str(ep.get("file_path") or "") or None
         tables["interfaces"][iid] = {"interface_id": iid, "req_ids": reqs, "type": "api",
                                      "content": f"{method} {path}", "file_path": fp,
+                                     "first_line": None, "updated_at": _ts(),
                                      "implemented": True}
         used_reqs.update(reqs)
     for route in getattr(blueprint, "routes", []) or []:
@@ -98,6 +106,7 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
             continue
         tables["interfaces"][iid] = {"interface_id": iid, "req_ids": [], "type": "ui",
                                      "content": f"{path} → {comp}", "file_path": fp,
+                                     "first_line": None, "updated_at": _ts(),
                                      "implemented": True}
 
     # ---- 测试：平台不给测试文件，就按"每个有场景的需求"登记一条 E2E 引用 ----
@@ -109,6 +118,8 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
         passed = (tests_passed or {}).get(nid)
         tables["tests"][tid] = {"test_id": tid, "req_id": nid, "type": "E2E",
                                 "passed": passed,
+                                "file_path": None, "first_line": None, "scenario_id": None,
+                                "updated_at": _ts(),
                                 "interface_ids": [i for i, v in tables["interfaces"].items()
                                                   if nid in (v.get("req_ids") or [])][:4]}
 
@@ -117,12 +128,25 @@ def write_traceability(out_dir: Path, tree, blueprint, *, tests_passed: dict[str
     for nid in req_ids:
         implemented = nid in used_reqs
         state = "IMPLEMENTED" if implemented else "DESIGNED"
-        tables["node_states"][nid] = {"req_id": nid, "state": state, "phase": "implement"}
+        # ★ 官方 SDK 的 node_states 一定带 `updated_at`（少了它，平台侧可能整条不认）
+        tables["node_states"][nid] = {"req_id": nid, "state": state, "phase": "implement",
+                                      "updated_at": _ts()}
         events.append({"type": "requirement_state", "node_id": nid, "phase": "design",
                        "status": "completed", "timestamp": _ts(), "message": None})
         if implemented:
             events.append({"type": "requirement_state", "node_id": nid, "phase": "implement",
                            "status": "completed", "timestamp": _ts(), "message": None})
+
+    # 官方 SDK 还会写 `type:"signal"` 的**刷新事件**（前端据此拉新数据）。
+    # 形态照 `references/actions.md`：traceability-changed → refresh 标志。
+    events.append({"type": "signal", "reason": "traceability_store_initialized", "timestamp": _ts(),
+                   "refresh": {"submission": True, "logs": False, "commit_history": False,
+                               "traceability_selected": True, "traceability_all": True,
+                               "preview": False}})
+    events.append({"type": "signal", "reason": "requirements_updated", "timestamp": _ts(),
+                   "refresh": {"submission": True, "logs": False, "commit_history": False,
+                               "traceability_selected": True, "traceability_all": True,
+                               "preview": False}})
 
     for name, rows in tables.items():
         (root / f"{name}.json").write_text(json.dumps(dict(sorted(rows.items())), ensure_ascii=False,
