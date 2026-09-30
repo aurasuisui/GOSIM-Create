@@ -166,9 +166,28 @@ RE_SEED_CELL = re.compile(r"cell\s+([A-Z]+\d{1,4})\s+value\s+`([^`]{1,60})`", re
 RE_SEED_ACCOUNT = re.compile(r"account\s+`([^`]{1,60})`", re.I)
 
 
-def canonical_seed_rows(text: str) -> list[dict]:
-    """按**规范句式**抽评测预置数据（workbook / worksheet / cell 值 / 账号）。"""
+# 🔴 **预置账号的三元组**（官方题逐字这么写）：
+#   "The seeded data is account `alice-dev`, email `alice.dev@example.test`, password `…`"
+#   实测我此前只抽到零散的 password 行（username/email 丢了对不上）→ 判据用文档里的账号**登录不上**，
+#   而登录是大量判据的第一步 → 极可能整批失败。
+RE_SEED_ACCOUNT3 = re.compile(
+    r"seeded data is account\s+`([^`]{1,60})`[^`]{0,160}?email\s+`([^`]{3,80})`[^`]{0,160}?password\s+`([^`]{3,80})`",
+    re.I | re.S)
+
+
+def canonical_account_rows(text: str) -> list[dict]:
+    """从 "seeded data is account X, email Y, password Z" 抽**一条完整的 users 行**。"""
     rows: list[dict] = []
+    for m in RE_SEED_ACCOUNT3.finditer(text or ""):
+        rows.append({"table": "users", "path": "seed/account",
+                     "values": {"username": m.group(1).strip(), "email": m.group(2).strip(),
+                                "password": m.group(3).strip()},
+                     "source": "requirements-seed"})
+    return rows
+
+def canonical_seed_rows(text: str) -> list[dict]:
+    """按**规范句式**抽评测预置数据（账号三元组 / workbook / worksheet / cell 值）。"""
+    rows: list[dict] = list(canonical_account_rows(text))
     for m in RE_SEED_WORKBOOK.finditer(text or ""):
         rows.append({"table": "workbooks", "path": "seed/workbook",
                      "values": {"name": m.group(1).strip()}, "source": "requirements-seed"})

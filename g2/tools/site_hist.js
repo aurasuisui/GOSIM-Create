@@ -1,0 +1,25 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
+  const p = await b.newPage();
+  await p.goto('https://arc-bench.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p.waitForTimeout(1200);
+  await p.fill('#login-email', '2436448088@qq.com');
+  await p.fill('#login-password', 'xbao2436');
+  await p.click('button:has-text("Login")');
+  await p.waitForTimeout(3000);
+  await p.goto('https://arc-bench.com/competitions/hackathon', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await p.waitForTimeout(5000);
+  const h = p.getByText(/History\s*\(\d+\)/).first();
+  console.log('history count:', await h.count());
+  await h.click();
+  await p.waitForTimeout(4000);
+  const body = await p.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n'));
+  const i = body.indexOf('History');
+  console.log('=== 历史区 ===');
+  console.log(body.slice(Math.max(0, i - 200), i + 2200));
+  const btns = await p.evaluate(() => Array.from(document.querySelectorAll('button')).map(e => (e.textContent||'').trim()).filter(Boolean).slice(0, 25));
+  console.log('buttons:', JSON.stringify(btns));
+  await p.screenshot({ path: 'g2/runs/site-history.png', fullPage: true });
+  await b.close();
+})().catch(e => { console.error('FAILED', e.message); process.exit(1); });
