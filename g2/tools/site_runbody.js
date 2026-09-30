@@ -1,0 +1,22 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
+  const p = await b.newPage();
+  await p.goto('https://arc-bench.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p.waitForTimeout(1200);
+  await p.fill('#login-email', '2436448088@qq.com');
+  await p.fill('#login-password', 'xbao2436');
+  await p.click('button:has-text("Login")');
+  await p.waitForTimeout(2500);
+  await p.goto('https://arc-bench.com/runs/b3b6263b2053', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await p.waitForTimeout(8000);
+  const body = await p.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n'));
+  console.log('BODY LEN', body.length);
+  console.log('=== 全文中与 test/pass/fail 相关的行 ===');
+  const lines = body.split('\n');
+  const hits = lines.filter(l => /test|pass|fail|expect|assert|timeout/i.test(l)).slice(0, 60);
+  console.log(hits.join('\n').slice(0, 3000));
+  const tabs = await p.evaluate(() => Array.from(document.querySelectorAll('button, [role=tab], a')).map(e => (e.textContent||'').trim()).filter(t => t && t.length < 20).slice(0, 40));
+  console.log('=== tabs/buttons ===', JSON.stringify(tabs));
+  await b.close();
+})().catch(e => { console.error('FAILED', e.message); process.exit(1); });

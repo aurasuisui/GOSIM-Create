@@ -1,0 +1,25 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
+  const p = await b.newPage();
+  await p.goto('https://arc-bench.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p.waitForTimeout(1200);
+  await p.fill('#login-email', '2436448088@qq.com');
+  await p.fill('#login-password', 'xbao2436');
+  await p.click('button:has-text("Login")');
+  await p.waitForTimeout(3000);
+  await p.goto('https://arc-bench.com/competitions/hackathon', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await p.waitForTimeout(5000);
+  await p.getByText(/History\s*\(\d+\)/).first().click();
+  await p.waitForTimeout(3000);
+  const open = p.getByText('Open run').first();
+  console.log('open run count:', await open.count());
+  await open.click();
+  await p.waitForTimeout(7000);
+  console.log('url now:', p.url());
+  const body = await p.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n'));
+  console.log('=== run page body (2500) ===');
+  console.log(body.slice(0, 2500));
+  await p.screenshot({ path: 'g2/runs/site-run.png', fullPage: true });
+  await b.close();
+})().catch(e => { console.error('FAILED', e.message); process.exit(1); });

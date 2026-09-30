@@ -1,0 +1,23 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
+  const p = await b.newPage();
+  await p.goto('https://arc-bench.com/login', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p.waitForTimeout(1200);
+  await p.fill('#login-email', '2436448088@qq.com');
+  await p.fill('#login-password', 'xbao2436');
+  await p.click('button:has-text("Login")');
+  await p.waitForTimeout(3000);
+  for (const url of ['https://arc-bench.com/competition?competition=hackathon', 'https://arc-bench.com/competition/hackathon']) {
+    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await p.waitForTimeout(3000);
+    const body = await p.evaluate(() => document.body.innerText.replace(/\n{2,}/g, '\n'));
+    console.log('=== ' + url + ' ===');
+    console.log(body.slice(0, 1200));
+    const links = await p.evaluate(() => Array.from(document.querySelectorAll('a')).map(a => a.getAttribute('href')).filter(Boolean));
+    console.log('LINKCOUNT', links.length, JSON.stringify(links.slice(0, 25)));
+    const btns = await p.evaluate(() => Array.from(document.querySelectorAll('button')).map(e => (e.textContent||'').trim()).filter(Boolean).slice(0, 15));
+    console.log('buttons:', JSON.stringify(btns));
+  }
+  await b.close();
+})().catch(e => { console.error('FAILED', e.message); process.exit(1); });
